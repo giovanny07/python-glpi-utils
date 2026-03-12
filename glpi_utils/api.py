@@ -257,10 +257,11 @@ class GlpiAPI:
             raise GlpiConnectionError(f"Request timed out after {self._timeout}s: {exc}") from exc
 
         log.debug("Response %s from %s", response.status_code, url)
-        _raise_for_glpi_error(response)
 
         if response.status_code == 204 or not response.content:
             return None
+
+        _raise_for_glpi_error(response)
         return response.json()
 
     # ------------------------------------------------------------------

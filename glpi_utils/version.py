@@ -36,14 +36,14 @@ class GLPIVersion:
         e.g. ``"11.0.0"``.
     """
 
-    _RE = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?")
+    _RE = re.compile(r"^(\d+)(?:\.(\d+)(?:\.(\d+))?)?")
 
     def __init__(self, version: str) -> None:
         match = self._RE.match(str(version))
-        if not match:
+        if not match or not match.group(0):
             raise ValueError(f"Cannot parse version string: {version!r}")
         self._major = int(match.group(1))
-        self._minor = int(match.group(2))
+        self._minor = int(match.group(2) or 0)
         self._patch = int(match.group(3) or 0)
         self._raw = str(version)
 
