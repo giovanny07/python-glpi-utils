@@ -1,32 +1,53 @@
-# Python
+# ── Python ────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.egg
 *.egg-info/
+.eggs/
+
+# ── Build / Distribution ──────────────────────────────────
 dist/
 build/
-.eggs/
 *.whl
+*.tar.gz
+MANIFEST
 
-# Virtual environments
+# ── Virtual environments ──────────────────────────────────
 .venv/
 venv/
 env/
+.env
 
-# Testing
+# ── Environment / secrets ─────────────────────────────────
+.env
+.env.*
+*.env
+.pypirc
+
+# ── Testing & coverage ────────────────────────────────────
 .coverage
+.coverage.*
+coverage.xml
 .pytest_cache/
 htmlcov/
 
-# Type checking
+# ── Type checking ─────────────────────────────────────────
 .mypy_cache/
+.ruff_cache/
 
-# IDE
+# ── IDE ───────────────────────────────────────────────────
 .vscode/
 .idea/
 *.swp
+*.swo
+*~
 
-# Distribution
-dist/
+# ── OS ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Jupyter (por si acaso) ────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
