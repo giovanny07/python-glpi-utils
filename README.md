@@ -11,12 +11,14 @@ It provides:
 
 - A **synchronous** client (`GlpiAPI`) powered by `requests`.
 - An **asynchronous** client (`AsyncGlpiAPI`) powered by `aiohttp`.
-- Fluent **item-type accessors** (`api.ticket`, `api.computer`, `api.user`, …) so you write `api.ticket.get(1)` instead of building raw HTTP calls.
+- **OAuth2 clients** (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11 high-level API (`/api.php`) with automatic token refresh.
+- **Auto-pagination** (`get_all_pages` / `iter_pages`) — fetch every item across all pages with one call.
+- Fluent **item-type accessors** (`api.ticket`, `api.computer`, `api.user`, …) so you write `api.ticket.get_all_pages()` instead of building raw HTTP calls.
+- A `SensitiveFilter` that masks passwords and tokens in debug logs automatically.
 - A **`GLPIVersion`** helper for comparing GLPI API versions.
 - A clean **exception hierarchy** so you can catch exactly what you need.
 
-> **Scope:** This library targets the GLPI 11 legacy REST API (`/apirest.php`).  
-> OAuth2 support for the high-level API (`/api.php`) is planned for a future release.
+> **Scope:** This library supports both the GLPI 11 legacy REST API (`/apirest.php`) and the high-level OAuth2 API (`/api.php`).
 
 ---
 
@@ -48,7 +50,7 @@ pip install glpi-utils[async]
 ### From source
 
 ```bash
-git clone https://github.com/yourusername/python-glpi-utils
+git clone https://github.com/giovanny07/python-glpi-utils
 cd python-glpi-utils
 pip install -e .[async]
 ```
@@ -169,6 +171,85 @@ articles = proxy.get_all(range="0-4")
 
 ---
 
+## Auto-pagination
+
+By default `get_all()` returns a single page (50 items). Use `get_all_pages()` to retrieve everything automatically:
+
+```python
+# All tickets — GLPI handles pagination transparently
+all_tickets = api.ticket.get_all_pages()
+
+# With filters
+open_tickets = api.ticket.get_all_pages(
+    sort="date_mod",
+    order="DESC",
+    is_deleted=False,
+)
+
+# Custom page size (fewer round-trips on fast networks)
+computers = api.computer.get_all_pages(page_size=100, expand_dropdowns=True)
+
+print(f"Total: {len(all_tickets)} tickets")
+```
+
+For large datasets, use `iter_pages()` to process items batch by batch without loading everything into RAM:
+
+```python
+total = 0
+for page in api.ticket.iter_pages(page_size=100):
+    for ticket in page:
+        process(ticket)
+        total += 1
+print(f"Processed {total} tickets")
+
+# Async version
+async for page in api.ticket.iter_pages(page_size=100):
+    for ticket in page:
+        await process(ticket)
+```
+
+---
+
+## OAuth2 (High-level API)
+
+For the GLPI 11 high-level API (`/api.php`), use the OAuth2 clients:
+
+```python
+from glpi_utils.oauth import GlpiOAuthClient
+
+# Client credentials grant (service accounts, scripts)
+with GlpiOAuthClient(
+    url="https://glpi.example.com",
+    client_id="my-app",
+    client_secret="my-secret",
+) as api:
+    api.authenticate()
+    tickets = api.ticket.get_all_pages()
+
+# Password grant (user-delegated)
+api = GlpiOAuthClient(url="https://glpi.example.com", client_id="my-app")
+api.authenticate(username="glpi", password="glpi")
+computers = api.computer.get_all_pages()
+api.close()
+
+# Async
+from glpi_utils.oauth import AsyncGlpiOAuthClient
+
+async with AsyncGlpiOAuthClient(
+    url="https://glpi.example.com",
+    client_id="my-app",
+    client_secret="my-secret",
+) as api:
+    await api.authenticate()
+    tickets = await api.ticket.get_all_pages()
+```
+
+The OAuth2 clients support all the same CRUD, sub-item, search and pagination methods as `GlpiAPI`.
+
+Environment variables: `GLPI_OAUTH_CLIENT_ID`, `GLPI_OAUTH_CLIENT_SECRET`, `GLPI_OAUTH_USERNAME`, `GLPI_OAUTH_PASSWORD`.
+
+---
+
 ## CRUD operations
 
 Every item-type accessor exposes the same set of methods:
@@ -263,6 +344,8 @@ except GlpiError:
 
 ## Enabling debug logging
 
+The library is silent by default. Enable with standard `logging`:
+
 ```python
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -270,6 +353,17 @@ logging.basicConfig(level=logging.DEBUG)
 from glpi_utils import GlpiAPI
 api = GlpiAPI(url="https://glpi.example.com")
 api.login(username="glpi", password="glpi")
+```
+
+Passwords, tokens and session IDs are **masked automatically** by `SensitiveFilter`. To add your own handler with masking:
+
+```python
+from glpi_utils import SensitiveFilter
+
+handler = logging.StreamHandler()
+handler.addFilter(SensitiveFilter())
+logging.getLogger("glpi_utils").addHandler(handler)
+logging.getLogger("glpi_utils").setLevel(logging.DEBUG)
 ```
 
 ---
