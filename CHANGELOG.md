@@ -7,6 +7,42 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.3.0] – 2026-03-12
+
+### Added
+
+- **MkDocs documentation site** — full documentation published to GitHub Pages at
+  `https://giovanny07.github.io/python-glpi-utils/`, built with
+  [MkDocs Material](https://squidfunk.github.io/mkdocs-material/) and
+  [mkdocstrings](https://mkdocstrings.github.io/):
+  - Getting Started guides: Installation, Quick Start, Authentication.
+  - How-to guides: CRUD Operations, Auto-pagination, OAuth2, Error Handling, Logging.
+  - Full API Reference auto-generated from docstrings: `GlpiAPI`, `AsyncGlpiAPI`,
+    `GlpiOAuthClient`, `AsyncGlpiOAuthClient`, exceptions, `GLPIVersion`, logger utilities.
+- **`CONTRIBUTING.md`** — contributing guide covering development setup, running tests,
+  code style (Ruff + mypy), PR workflow, commit message format, and bug reporting.
+- **GitHub Actions `docs.yaml` workflow** — automatically deploys the MkDocs site to
+  GitHub Pages on every push to `main`.
+- **GitHub Actions `release.yaml` workflow** — automatically builds and publishes to PyPI
+  when a `v*.*.*` tag is pushed. Requires `PYPI_API_TOKEN` secret in repository settings.
+- **`mkdocs.yml`** — MkDocs configuration with Material theme, dark/light toggle,
+  navigation tabs, search, and `mkdocstrings` plugin for API auto-documentation.
+
+### Fixed
+
+- **CI: `aiohttp` not installed in test runner** — changed `pip install -e .` to
+  `pip install -e ".[async]"` in `.github/workflows/tests.yaml`. This caused all
+  async tests (`AsyncGlpiAPI`, `AsyncGlpiOAuthClient`) to fail on the GitHub Actions
+  runner despite passing locally. All 262 tests now pass on Python 3.9 – 3.13.
+
+### Changed
+
+- `requirements-dev.txt` — added MkDocs dependencies:
+  `mkdocs`, `mkdocs-material`, `mkdocstrings[python]`, `mkdocs-autorefs`.
+- `setup.cfg` `[dev]` extras — same MkDocs dependencies added for `pip install -e ".[dev]"`.
+
+---
+
 ## [1.2.0] – 2025-03-01
 
 ### Added
@@ -39,9 +75,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Tests
 
 - Added 102 new tests across three new test modules (262 total, up from 160):
-  - `tests/test_pagination.py` — 19 tests: `_parse_content_range`, multi-page sync, async, `iter_pages`, proxy forwarding.
-  - `tests/test_logger.py` — 22 tests: `mask_secret`, `hide_sensitive` (nested dicts, lists, tuples, depth guard), `SensitiveFilter`, `EmptyHandler`.
-  - `tests/test_oauth.py` — 61 tests: `_TokenStore`, `GlpiOAuthClient` (init, auth flows, CRUD, pagination, proxy, context manager), `AsyncGlpiOAuthClient` (init, auth, CRUD, pagination, proxy, context manager).
+  - `tests/test_pagination.py` — 19 tests.
+  - `tests/test_logger.py` — 22 tests.
+  - `tests/test_oauth.py` — 61 tests.
 
 ---
 
@@ -49,21 +85,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- **`tests/__init__.py`** – proper package marker so test discovery works consistently across all tools and CI runners (mirrors pattern from `zabbix-utils`).
-- **`tests/common.py`** – shared test helpers (`mock_response`, `make_api`) to avoid repetition across test modules.
-- **`tests/test_version.py`** – dedicated test module for `GLPIVersion` (22 assertions: parsing, comparisons, hash, edge cases).
-- **`tests/test_api.py`** – comprehensive sync API tests split into focused classes: init, auth, errors, version, CRUD, sub-items, session utilities, ItemProxy (covers all 25 built-in aliases, caching, error messages, HTTP method verification, bool→int param conversion).
-- **`tests/test_aioapi.py`** – full async client coverage using `pytest-asyncio` (login flows, CRUD, sub-items, context manager, version fetch).
-- **`tests/test_exceptions.py`** – exception hierarchy, attribute storage, `repr`, `str`, and inheritance chain.
+- `tests/__init__.py` — package marker for consistent test discovery across tools and CI.
+- `tests/common.py` — shared helpers (`mock_response`, `make_api`).
+- `tests/test_version.py` — 22 tests for `GLPIVersion`.
+- `tests/test_api.py` — comprehensive sync API tests (init, auth, errors, version, CRUD, sub-items, session, ItemProxy).
+- `tests/test_aioapi.py` — full async client coverage with `pytest-asyncio`.
+- `tests/test_exceptions.py` — exception hierarchy, attributes, repr, str.
 
 ### Changed
 
-- `setup.cfg`: added `asyncio_mode = auto` and `asyncio_default_fixture_loop_scope = function` for `pytest-asyncio` compatibility.
-- `setup.cfg`: `pytest-asyncio >= 0.23` already listed in `[dev]` extras.
+- `setup.cfg`: added `asyncio_mode = auto` and `asyncio_default_fixture_loop_scope = function`.
 
 ### Fixed
 
-- Replaced `X | None` union type syntax (Python 3.10+) with `Optional[X]` from `typing` for full Python 3.9 compatibility across `exceptions.py`, `api.py`, `aio.py`, `_resource.py`, and `version.py`.
+- Replaced `X | None` syntax (Python 3.10+) with `Optional[X]` for Python 3.9 compatibility across all modules.
 
 ---
 
@@ -71,51 +106,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
-- **`GlpiAPI`** – synchronous client for the GLPI 11 legacy REST API (`/apirest.php`).
-- **`AsyncGlpiAPI`** – asynchronous client powered by `aiohttp`.
-- **Fluent item-type accessors** – `api.ticket`, `api.computer`, `api.user`, … and `api.item("AnyItemtype")` for custom types.
-- **`GLPIVersion`** – comparable wrapper around GLPI version strings with rich comparisons (`>`, `==`, etc.).
-- **Full exception hierarchy**: `GlpiError`, `GlpiAPIError`, `GlpiAuthError`, `GlpiNotFoundError`, `GlpiPermissionError`, `GlpiConnectionError`.
-- **Authentication**: username/password (Basic Auth), personal user token, and environment variable support (`GLPI_URL`, `GLPI_USER`, `GLPI_PASSWORD`, `GLPI_USER_TOKEN`, `GLPI_APP_TOKEN`).
-- **CRUD operations**: `get`, `get_all`, `search`, `create`, `update`, `delete` for all GLPI item types.
-- **Sub-item operations**: `get_sub_items`, `add_sub_item` (followups, tasks, solutions, …).
-- **Session utilities**: `get_my_profiles`, `set_active_profile`, `get_my_entities`, `set_active_entity`, `get_full_session`.
-- **Document upload** via multipart form.
-- Context-manager support for both sync and async clients.
-- GitHub Actions workflow for CI across Python 3.9 → 3.13.
-
-### Notes
-
-- Targets GLPI 11 (legacy `apirest.php` API).
-- OAuth2 / High-level API (`api.php`) support is planned for a future release.
-
-
-All notable changes to **python-glpi-utils** are documented in this file.
-
-The format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
----
-
-## [1.0.0] – 2025-01-01
-
-### Added
-
-- **`GlpiAPI`** – synchronous client for the GLPI 11 legacy REST API (`/apirest.php`).
-- **`AsyncGlpiAPI`** – asynchronous client powered by `aiohttp`.
-- **Fluent item-type accessors** – `api.ticket`, `api.computer`, `api.user`, … and `api.item("AnyItemtype")` for custom types.
-- **`GLPIVersion`** – comparable wrapper around GLPI version strings with rich comparisons (`>`, `==`, etc.).
-- **Full exception hierarchy**: `GlpiError`, `GlpiAPIError`, `GlpiAuthError`, `GlpiNotFoundError`, `GlpiPermissionError`, `GlpiConnectionError`.
-- **Authentication**: username/password (Basic Auth), personal user token, and environment variable support (`GLPI_URL`, `GLPI_USER`, `GLPI_PASSWORD`, `GLPI_USER_TOKEN`, `GLPI_APP_TOKEN`).
-- **CRUD operations**: `get`, `get_all`, `search`, `create`, `update`, `delete` for all GLPI item types.
-- **Sub-item operations**: `get_sub_items`, `add_sub_item` (followups, tasks, solutions, …).
-- **Session utilities**: `get_my_profiles`, `set_active_profile`, `get_my_entities`, `set_active_entity`, `get_full_session`.
-- **Document upload** via multipart form.
-- Context-manager support for both sync and async clients.
-- Unit tests with mocked HTTP (no live server required).
-- GitHub Actions workflows for tests and compatibility checks.
-
-### Notes
-
-- Targets GLPI 11 (legacy `apirest.php` API).
-- OAuth2 / High-level API (`api.php`) support is planned for a future release.
+- **`GlpiAPI`** — synchronous client for the GLPI 11 legacy REST API (`/apirest.php`).
+- **`AsyncGlpiAPI`** — asynchronous client powered by `aiohttp`.
+- Fluent item-type accessors: `api.ticket`, `api.computer`, `api.user`, … and `api.item("AnyItemtype")`.
+- **`GLPIVersion`** — comparable version wrapper with rich comparisons.
+- Full exception hierarchy: `GlpiError`, `GlpiAPIError`, `GlpiAuthError`, `GlpiNotFoundError`, `GlpiPermissionError`, `GlpiConnectionError`.
+- Authentication: username/password, personal user token, environment variables.
+- CRUD operations, sub-item operations, session utilities, document upload.
+- Context-manager support for sync and async clients.
+- GitHub Actions CI across Python 3.9 → 3.13.
