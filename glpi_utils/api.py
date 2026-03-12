@@ -82,7 +82,7 @@ def _raise_for_glpi_error(response: Response) -> None:
     """Inspect a GLPI API response and raise an appropriate exception."""
     status = response.status_code
 
-    if status in (200, 201):
+    if status in (200, 201, 206):
         return
 
     try:
@@ -392,9 +392,27 @@ class GlpiAPI:
     def version(self) -> GLPIVersion:
         """GLPI server version as a :class:`~glpi_utils.version.GLPIVersion`."""
         if self._version is None:
-            data = self._request("GET", "getGlpiConfig")
-            raw = data.get("cfg_glpi", {}).get("glpi_version") or data.get("glpi_version", "0.0.0")
-            self._version = GLPIVersion(raw)
+            try:
+                data = self._request("GET", "getGlpiConfig")
+                # GLPI 10/11: version is in cfg_glpi.glpi_version
+                raw = (
+                    (data.get("cfg_glpi") or {}).get("glpi_version")
+                    or data.get("glpi_version")
+                    or data.get("version")
+                )
+            except GlpiAPIError:
+                raw = None
+            if not raw:
+                # Fallback: read from full session
+                try:
+                    session = self._request("GET", "getFullSession")
+                    raw = (
+                        (session.get("session") or {}).get("glpi_version")
+                        or session.get("glpi_version")
+                    )
+                except GlpiAPIError:
+                    raw = None
+            self._version = GLPIVersion(raw or "0.0.0")
         return self._version
 
     # ------------------------------------------------------------------

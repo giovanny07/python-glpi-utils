@@ -111,7 +111,7 @@ class _TokenStore:
 
 def _raise_for_oauth_error(status: int, body: Any, text: str = "") -> None:
     """Raise an appropriate exception based on HTTP status and body."""
-    if status in (200, 201):
+    if status in (200, 201, 206):
         return
 
     if isinstance(body, dict):

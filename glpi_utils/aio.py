@@ -21,7 +21,7 @@ from typing import Any, AsyncIterator, Optional
 
 from ._resource import AsyncItemProxy
 from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _parse_content_range, _raise_for_glpi_error
-from .exceptions import GlpiAuthError, GlpiConnectionError
+from .exceptions import GlpiAPIError, GlpiAuthError, GlpiConnectionError
 from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
 
@@ -277,9 +277,26 @@ class AsyncGlpiAPI:
 
     async def get_version(self) -> GLPIVersion:
         """Fetch and cache the GLPI server version."""
-        data = await self._request("GET", "getGlpiConfig")
-        raw = data.get("cfg_glpi", {}).get("glpi_version") or data.get("glpi_version", "0.0.0")
-        self._version = GLPIVersion(raw)
+        raw = None
+        try:
+            data = await self._request("GET", "getGlpiConfig")
+            raw = (
+                (data.get("cfg_glpi") or {}).get("glpi_version")
+                or data.get("glpi_version")
+                or data.get("version")
+            )
+        except GlpiAPIError:
+            raw = None
+        if not raw:
+            try:
+                session = await self._request("GET", "getFullSession")
+                raw = (
+                    (session.get("session") or {}).get("glpi_version")
+                    or session.get("glpi_version")
+                )
+            except GlpiAPIError:
+                raw = None
+        self._version = GLPIVersion(raw or "0.0.0")
         return self._version
 
     # ------------------------------------------------------------------
