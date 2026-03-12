@@ -1,7 +1,9 @@
--r requirements.txt
-aiohttp>=3.9.0
 pytest>=7.0
 pytest-asyncio>=0.23
 pytest-cov>=4.0
 mypy>=1.0
 ruff>=0.3
+mkdocs>=1.6
+mkdocs-material>=9.5
+mkdocstrings[python]>=0.25
+mkdocs-autorefs>=1.0

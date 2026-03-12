@@ -1,0 +1,103 @@
+site_name: python-glpi-utils
+site_description: Python library for the GLPI 11 REST API
+site_url: https://giovanny07.github.io/python-glpi-utils/
+repo_url: https://github.com/giovanny07/python-glpi-utils
+repo_name: giovanny07/python-glpi-utils
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: en
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+    - content.code.annotate
+    - toc.follow
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+            show_source: true
+            show_root_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: true
+            unwrap_annotated: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: guides/installation.md
+    - Quick Start: guides/quickstart.md
+    - Authentication: guides/authentication.md
+  - Guides:
+    - CRUD Operations: guides/crud.md
+    - Auto-pagination: guides/pagination.md
+    - OAuth2: guides/oauth2.md
+    - Error Handling: guides/error_handling.md
+    - Logging: guides/logging.md
+  - API Reference:
+    - GlpiAPI: api/glpi_api.md
+    - AsyncGlpiAPI: api/async_glpi_api.md
+    - GlpiOAuthClient: api/oauth.md
+    - Exceptions: api/exceptions.md
+    - GLPIVersion: api/version.md
+    - Logger: api/logger.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/giovanny07/python-glpi-utils
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/glpi-utils/
+  version:
+    provider: mike
