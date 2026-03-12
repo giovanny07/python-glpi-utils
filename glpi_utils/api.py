@@ -2,17 +2,13 @@
 glpi_utils.api
 ~~~~~~~~~~~~~~
 
-Synchronous GLPI REST API client.
+Synchronous GLPI REST API client (legacy ``/apirest.php``).
 
 GLPI 11 ships with two parallel APIs:
 
-* **Legacy API** (``/apirest.php``) – session-token based, stable, the one
-  this module targets for maximum compatibility.
+* **Legacy API** (``/apirest.php``) – session-token based, stable.
 * **High-level API** (``/api.php``) – OAuth2-based, introduced in GLPI 11.
-
-This implementation focuses on the legacy API because it remains the most
-broadly supported mechanism for automation and scripts as of GLPI 11.
-OAuth2 support via the high-level API can be added in a future release.
+  See :mod:`glpi_utils.aio_oauth` for the OAuth2 client.
 """
 
 from __future__ import annotations
@@ -20,7 +16,7 @@ from __future__ import annotations
 import logging
 import os
 from base64 import b64encode
-from typing import Any, Optional
+from typing import Any, Iterator, Optional
 
 import requests
 from requests import Response, Session
@@ -33,49 +29,60 @@ from .exceptions import (
     GlpiNotFoundError,
     GlpiPermissionError,
 )
+from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
 
 log = logging.getLogger(__name__)
+log.addHandler(EmptyHandler())
+log.addFilter(SensitiveFilter())
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Module-level helpers
+# Constants
 # ──────────────────────────────────────────────────────────────────────────────
+
+#: Default page size used by :meth:`GlpiAPI.get_all_items` when no ``range``
+#: is supplied.  GLPI's own default is also 50 items per page.
+DEFAULT_PAGE_SIZE = 50
 
 _ITEMTYPE_MAP: dict = {
-    # attr name  →  GLPI itemtype
-    "ticket": "Ticket",
-    "computer": "Computer",
-    "monitor": "Monitor",
-    "printer": "Printer",
+    "ticket":           "Ticket",
+    "computer":         "Computer",
+    "monitor":          "Monitor",
+    "printer":          "Printer",
     "networkequipment": "NetworkEquipment",
-    "software": "Software",
-    "user": "User",
-    "group": "Group",
-    "entity": "Entity",
-    "location": "Location",
-    "category": "ITILCategory",
-    "problem": "Problem",
-    "change": "Change",
-    "project": "Project",
-    "projecttask": "ProjectTask",
-    "document": "Document",
-    "contract": "Contract",
-    "supplier": "Supplier",
-    "contact": "Contact",
-    "knowledgebase": "KnowbaseItem",
-    "followup": "ITILFollowup",
-    "solution": "ITILSolution",
-    "task": "TicketTask",
-    "validation": "TicketValidation",
-    "log": "Log",
+    "software":         "Software",
+    "user":             "User",
+    "group":            "Group",
+    "entity":           "Entity",
+    "location":         "Location",
+    "category":         "ITILCategory",
+    "problem":          "Problem",
+    "change":           "Change",
+    "project":          "Project",
+    "projecttask":      "ProjectTask",
+    "document":         "Document",
+    "contract":         "Contract",
+    "supplier":         "Supplier",
+    "contact":          "Contact",
+    "knowledgebase":    "KnowbaseItem",
+    "followup":         "ITILFollowup",
+    "solution":         "ITILSolution",
+    "task":             "TicketTask",
+    "validation":       "TicketValidation",
+    "log":              "Log",
 }
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Internal helpers
+# ──────────────────────────────────────────────────────────────────────────────
 
 
 def _raise_for_glpi_error(response: Response) -> None:
     """Inspect a GLPI API response and raise an appropriate exception."""
     status = response.status_code
 
-    if status == 200 or status == 201:
+    if status in (200, 201):
         return
 
     try:
@@ -102,6 +109,27 @@ def _raise_for_glpi_error(response: Response) -> None:
     raise GlpiAPIError(message, status_code=status, error_code=error_code)
 
 
+def _boolify_params(params: dict) -> dict:
+    """Convert Python ``bool`` values to GLPI-expected ``0``/``1`` integers."""
+    return {k: int(v) if isinstance(v, bool) else v for k, v in params.items()}
+
+
+def _parse_content_range(header: str) -> Optional[int]:
+    """Parse GLPI's ``Content-Range`` header and return the total item count.
+
+    GLPI sends ``Content-Range: 0-49/1337`` where ``1337`` is the grand total.
+    Returns ``None`` if the header is absent or malformed.
+    """
+    if not header:
+        return None
+    try:
+        # Format: "<start>-<end>/<total>"
+        total_part = header.split("/")[-1].strip()
+        return int(total_part)
+    except (ValueError, IndexError):
+        return None
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Main class
 # ──────────────────────────────────────────────────────────────────────────────
@@ -116,7 +144,7 @@ class GlpiAPI:
         Base URL of the GLPI server, e.g. ``"https://glpi.example.com"``.
         Can be supplied via the ``GLPI_URL`` environment variable.
     app_token : str or None
-        Application token configured in GLPI → Setup → General → API.
+        Application token configured in *Setup → General → API*.
         Optional but recommended for production use.
         Can be supplied via ``GLPI_APP_TOKEN``.
     verify_ssl : bool
@@ -132,7 +160,13 @@ class GlpiAPI:
 
         api = GlpiAPI(url="https://glpi.example.com", app_token="xxxx")
         api.login(username="glpi", password="glpi")
+
+        # Fetch a single page
         tickets = api.ticket.get_all(range="0-9")
+
+        # Fetch ALL tickets automatically (auto-pagination)
+        all_tickets = api.ticket.get_all_pages()
+
         api.logout()
 
     Authenticate with a personal API token::
@@ -166,8 +200,6 @@ class GlpiAPI:
         self._session_token: Optional[str] = None
         self._http = Session()
         self._version: Optional[GLPIVersion] = None
-
-        # Cached ItemProxy instances
         self._proxies: dict = {}
 
     # ------------------------------------------------------------------
@@ -185,7 +217,7 @@ class GlpiAPI:
                 pass
 
     # ------------------------------------------------------------------
-    # Fluent item-type accessor (api.ticket, api.computer, …)
+    # Fluent item-type accessors  api.ticket / api.computer / …
     # ------------------------------------------------------------------
 
     def __getattr__(self, name: str) -> ItemProxy:
@@ -196,7 +228,7 @@ class GlpiAPI:
             return self._proxies[lower]
         raise AttributeError(
             f"{self.__class__.__name__!r} object has no attribute {name!r}. "
-            f"Use api.item('YourItemtype') to access non-standard item types."
+            "Use api.item('YourItemtype') to access non-standard item types."
         )
 
     def item(self, itemtype: str) -> ItemProxy:
@@ -205,14 +237,14 @@ class GlpiAPI:
         Parameters
         ----------
         itemtype : str
-            GLPI itemtype name (case-sensitive), e.g. ``"Ticket"``, ``"KnowbaseItem"``.
+            GLPI itemtype name (case-sensitive), e.g. ``"Ticket"``.
         """
         if itemtype not in self._proxies:
             self._proxies[itemtype] = ItemProxy(self, itemtype)
         return self._proxies[itemtype]
 
     # ------------------------------------------------------------------
-    # Internal HTTP helpers
+    # Internal HTTP layer
     # ------------------------------------------------------------------
 
     @property
@@ -237,15 +269,14 @@ class GlpiAPI:
         json: Any = None,
     ) -> Any:
         url = f"{self._base_url}/{path.lstrip('/')}"
-        merged_headers = {**self._default_headers(), **(headers or {})}
+        merged = {**self._default_headers(), **(headers or {})}
 
-        log.debug("%s %s params=%s", method.upper(), url, params)
+        log.debug("%s %s  params=%s", method.upper(), url, params)
 
         try:
             response = self._http.request(
-                method,
-                url,
-                headers=merged_headers,
+                method, url,
+                headers=merged,
                 params=params,
                 json=json,
                 verify=self._verify_ssl,
@@ -264,6 +295,42 @@ class GlpiAPI:
         _raise_for_glpi_error(response)
         return response.json()
 
+    def _request_with_headers(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: Optional[dict] = None,
+        json: Any = None,
+    ) -> tuple:
+        """Like ``_request`` but returns ``(body, response_headers)``."""
+        url = f"{self._base_url}/{path.lstrip('/')}"
+        merged = self._default_headers()
+
+        log.debug("%s %s  params=%s", method.upper(), url, params)
+
+        try:
+            response = self._http.request(
+                method, url,
+                headers=merged,
+                params=params,
+                json=json,
+                verify=self._verify_ssl,
+                timeout=self._timeout,
+            )
+        except requests.exceptions.ConnectionError as exc:
+            raise GlpiConnectionError(f"Cannot reach GLPI at {self._url}: {exc}") from exc
+        except requests.exceptions.Timeout as exc:
+            raise GlpiConnectionError(f"Request timed out after {self._timeout}s: {exc}") from exc
+
+        log.debug("Response %s from %s", response.status_code, url)
+
+        if response.status_code == 204 or not response.content:
+            return None, response.headers
+
+        _raise_for_glpi_error(response)
+        return response.json(), response.headers
+
     # ------------------------------------------------------------------
     # Authentication
     # ------------------------------------------------------------------
@@ -276,22 +343,19 @@ class GlpiAPI:
     ) -> None:
         """Authenticate against GLPI and store the session token.
 
-        Call **one** of the following parameter combinations:
-
-        * ``username`` + ``password`` – basic-auth credentials.
-        * ``user_token`` – personal API token from the user profile page.
-
-        Environment-variable fallbacks: ``GLPI_USER``, ``GLPI_PASSWORD``,
-        ``GLPI_USER_TOKEN``.
-
         Parameters
         ----------
         username : str or None
         password : str or None
         user_token : str or None
+            Personal API token from the user profile page (*Remote access key*).
+
+        Environment variables
+        ---------------------
+        ``GLPI_USER``, ``GLPI_PASSWORD``, ``GLPI_USER_TOKEN``
         """
-        username = username or os.environ.get("GLPI_USER")
-        password = password or os.environ.get("GLPI_PASSWORD")
+        username   = username   or os.environ.get("GLPI_USER")
+        password   = password   or os.environ.get("GLPI_PASSWORD")
         user_token = user_token or os.environ.get("GLPI_USER_TOKEN")
 
         auth_headers: dict = {}
@@ -303,13 +367,13 @@ class GlpiAPI:
             auth_headers["Authorization"] = f"Basic {credentials}"
         else:
             raise GlpiAuthError(
-                "Provide username+password or user_token (or set the corresponding "
-                "environment variables GLPI_USER/GLPI_PASSWORD/GLPI_USER_TOKEN)."
+                "Provide username+password or user_token (or set "
+                "GLPI_USER/GLPI_PASSWORD/GLPI_USER_TOKEN)."
             )
 
         data = self._request("GET", "initSession", headers=auth_headers)
         self._session_token = data["session_token"]
-        log.debug("Session established (token length=%d)", len(self._session_token))
+        log.debug("Session established.")
 
     def logout(self) -> None:
         """Terminate the active GLPI session."""
@@ -326,7 +390,7 @@ class GlpiAPI:
 
     @property
     def version(self) -> GLPIVersion:
-        """Return the GLPI server version as a :class:`~glpi_utils.version.GLPIVersion`."""
+        """GLPI server version as a :class:`~glpi_utils.version.GLPIVersion`."""
         if self._version is None:
             data = self._request("GET", "getGlpiVersion")
             self._version = GLPIVersion(data.get("glpi_version", "0.0.0"))
@@ -379,19 +443,194 @@ class GlpiAPI:
     # ------------------------------------------------------------------
 
     def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict:
-        """Return a single item by ID."""
+        """Return a single item by ID.
+
+        Parameters
+        ----------
+        itemtype : str
+        item_id : int
+        **kwargs
+            Extra query parameters: ``expand_dropdowns``, ``with_logs``,
+            ``with_networkports``, ``with_infocoms``, etc.
+        """
         params = _boolify_params(kwargs)
         return self._request("GET", f"{itemtype}/{item_id}", params=params)
 
     def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
-        """Return all items of *itemtype* (handles pagination automatically)."""
+        """Return a **single page** of items.
+
+        Use :meth:`get_all_pages` to retrieve every item across all pages
+        automatically.
+
+        Parameters
+        ----------
+        itemtype : str
+        **kwargs
+            ``range`` (default ``"0-49"``), ``sort``, ``order``,
+            ``searchText``, ``is_deleted``, ``expand_dropdowns``, etc.
+        """
         params = _boolify_params(kwargs)
         if "range" not in params:
-            params["range"] = "0-49"
+            params["range"] = f"0-{DEFAULT_PAGE_SIZE - 1}"
         return self._request("GET", itemtype, params=params)
 
+    def get_all_pages(
+        self,
+        itemtype: str,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        **kwargs: Any,
+    ) -> list:
+        """Fetch **all** items of *itemtype* by iterating pages automatically.
+
+        GLPI paginates results via a ``range`` query parameter (``0-49``,
+        ``50-99``, …) and reports the grand total in the ``Content-Range``
+        response header (``0-49/1337``).  This method handles all of that
+        transparently and returns a single flat list.
+
+        Parameters
+        ----------
+        itemtype : str
+            GLPI itemtype, e.g. ``"Ticket"``.
+        page_size : int
+            Items per request (default: 50).  Increase for fewer round-trips
+            on large datasets; decrease if responses are slow.
+        **kwargs
+            Extra GLPI parameters passed to every page request: ``sort``,
+            ``order``, ``searchText``, ``is_deleted``,
+            ``expand_dropdowns``, etc.  Do **not** pass ``range`` here —
+            it is managed internally.
+
+        Returns
+        -------
+        list
+            All matching items as a flat list of dicts.
+
+        Examples
+        --------
+        ::
+
+            # All open tickets, sorted by date
+            tickets = api.get_all_pages(
+                "Ticket",
+                sort="date_mod",
+                order="DESC",
+                searchText={"status": "1"},
+            )
+
+            # Via the fluent proxy
+            computers = api.computer.get_all_pages(expand_dropdowns=True)
+        """
+        params = _boolify_params(kwargs)
+        results: list = []
+        start = 0
+
+        while True:
+            end = start + page_size - 1
+            params["range"] = f"{start}-{end}"
+
+            page_items, resp_headers = self._request_with_headers(
+                "GET", itemtype, params=params
+            )
+
+            if not page_items:
+                break
+
+            results.extend(page_items)
+
+            total = _parse_content_range(
+                resp_headers.get("Content-Range", "")
+            )
+
+            log.debug(
+                "Paginating %s: fetched %d/%s items (range %s-%s)",
+                itemtype, len(results), total or "?", start, end,
+            )
+
+            # Stop if we know the grand total and have reached it
+            if total is not None and len(results) >= total:
+                break
+
+            # Stop if GLPI returned fewer items than requested
+            # (last partial page — no Content-Range header on some versions)
+            if len(page_items) < page_size:
+                break
+
+            start += page_size
+
+        return results
+
+    def iter_pages(
+        self,
+        itemtype: str,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        **kwargs: Any,
+    ) -> Iterator[list]:
+        """Yield one page of items at a time.
+
+        Memory-efficient alternative to :meth:`get_all_pages` for very large
+        datasets where you want to process each batch immediately rather than
+        accumulating everything in RAM.
+
+        Parameters
+        ----------
+        itemtype : str
+        page_size : int
+        **kwargs
+            Same as :meth:`get_all_pages`.
+
+        Yields
+        ------
+        list
+            One page (list of dicts) per iteration.
+
+        Examples
+        --------
+        ::
+
+            for page in api.iter_pages("Ticket", page_size=100):
+                for ticket in page:
+                    process(ticket)
+        """
+        params = _boolify_params(kwargs)
+        start = 0
+        fetched = 0
+
+        while True:
+            end = start + page_size - 1
+            params["range"] = f"{start}-{end}"
+
+            page_items, resp_headers = self._request_with_headers(
+                "GET", itemtype, params=params
+            )
+
+            if not page_items:
+                return
+
+            fetched += len(page_items)
+            yield page_items
+
+            total = _parse_content_range(
+                resp_headers.get("Content-Range", "")
+            )
+
+            if total is not None and fetched >= total:
+                return
+            if len(page_items) < page_size:
+                return
+
+            start += page_size
+
     def search(self, itemtype: str, **kwargs: Any) -> dict:
-        """Run the GLPI search engine."""
+        """Run the GLPI search engine.
+
+        Parameters
+        ----------
+        itemtype : str
+            ``"AllAssets"`` for a cross-type search.
+        **kwargs
+            ``criteria``, ``metacriteria``, ``sort``, ``order``,
+            ``range``, ``forcedisplay``, ``rawdata``, ``withindexes``.
+        """
         params = _boolify_params(kwargs)
         return self._request("GET", f"search/{itemtype}", params=params)
 
@@ -402,7 +641,7 @@ class GlpiAPI:
         return self._request("POST", itemtype, json=payload)
 
     def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
-        """Update one or several items. Each item dict must contain an ``"id"`` key."""
+        """Update one or several items. Each dict must contain an ``"id"`` key."""
         payload: dict = {"input": input_data}
         payload.update(kwargs)
         return self._request("PUT", itemtype, json=payload)
@@ -414,7 +653,15 @@ class GlpiAPI:
         force_purge: bool = False,
         history: bool = True,
     ) -> list:
-        """Delete one or several items."""
+        """Delete one or several items.
+
+        Parameters
+        ----------
+        force_purge : bool
+            Bypass the trash and permanently delete.
+        history : bool
+            Whether to log the deletion in history.
+        """
         payload: dict = {
             "input": input_data,
             "force_purge": int(force_purge),
@@ -433,7 +680,7 @@ class GlpiAPI:
         sub_itemtype: str,
         **kwargs: Any,
     ) -> list:
-        """Return sub-items of a given type for a parent item."""
+        """Return sub-items (e.g. followups, tasks, solutions of a ticket)."""
         params = _boolify_params(kwargs)
         return self._request(
             "GET", f"{itemtype}/{item_id}/{sub_itemtype}", params=params
@@ -455,16 +702,12 @@ class GlpiAPI:
         )
 
     # ------------------------------------------------------------------
-    # List item types
+    # Misc
     # ------------------------------------------------------------------
 
     def list_item_types(self) -> list:
-        """Return the list of available item-type names in this GLPI instance."""
+        """Return all available item-type names in this GLPI instance."""
         return self._request("GET", "listItemtypes")
-
-    # ------------------------------------------------------------------
-    # Documents
-    # ------------------------------------------------------------------
 
     def upload_document(self, file_path: str, document_name: Optional[str] = None) -> dict:
         """Upload a file as a GLPI Document.
@@ -474,43 +717,29 @@ class GlpiAPI:
         file_path : str
             Local path to the file to upload.
         document_name : str or None
-            Optional display name. Defaults to the file basename.
+            Display name. Defaults to the file basename.
         """
         import json as _json
         from pathlib import Path
 
-        file_path_obj = Path(file_path)
-        name = document_name or file_path_obj.name
-
-        manifest = _json.dumps(
-            {"input": {"name": name, "filename": [file_path_obj.name]}}
-        )
+        fp = Path(file_path)
+        name = document_name or fp.name
+        manifest = _json.dumps({"input": {"name": name, "filename": [fp.name]}})
         url = f"{self._base_url}/Document"
         headers = {k: v for k, v in self._default_headers().items() if k != "Content-Type"}
 
-        with file_path_obj.open("rb") as fh:
+        with fp.open("rb") as fh:
             response = self._http.post(
-                url,
-                headers=headers,
+                url, headers=headers,
                 files={
                     "uploadManifest": (None, manifest, "application/json"),
-                    "filename[0]": (file_path_obj.name, fh),
+                    "filename[0]": (fp.name, fh),
                 },
                 verify=self._verify_ssl,
                 timeout=self._timeout,
             )
         _raise_for_glpi_error(response)
         return response.json()
-
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Utilities
-# ──────────────────────────────────────────────────────────────────────────────
-
-
-def _boolify_params(params: dict) -> dict:
-    """Convert Python booleans to GLPI-expected ``0``/``1`` integers."""
-    return {k: int(v) if isinstance(v, bool) else v for k, v in params.items()}
 
 
 from .exceptions import GlpiError  # noqa: E402

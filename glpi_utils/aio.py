@@ -17,18 +17,21 @@ from __future__ import annotations
 import logging
 import os
 from base64 import b64encode
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 from ._resource import AsyncItemProxy
-from .api import _ITEMTYPE_MAP, _boolify_params, _raise_for_glpi_error
+from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _parse_content_range, _raise_for_glpi_error
 from .exceptions import GlpiAuthError, GlpiConnectionError
+from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
 
 log = logging.getLogger(__name__)
+log.addHandler(EmptyHandler())
+log.addFilter(SensitiveFilter())
 
 
 class AsyncGlpiAPI:
-    """Asynchronous client for the GLPI 11 legacy REST API.
+    """Asynchronous client for the GLPI 11 legacy REST API (``/apirest.php``).
 
     Must be used with ``await``::
 
@@ -38,7 +41,18 @@ class AsyncGlpiAPI:
         async def main():
             api = AsyncGlpiAPI(url="https://glpi.example.com")
             await api.login(username="glpi", password="glpi")
+
+            # Single page
             tickets = await api.ticket.get_all()
+
+            # All pages automatically
+            all_tickets = await api.ticket.get_all_pages()
+
+            # Memory-efficient iteration
+            async for page in api.ticket.iter_pages(page_size=100):
+                for ticket in page:
+                    process(ticket)
+
             await api.logout()
 
         asyncio.run(main())
@@ -74,9 +88,7 @@ class AsyncGlpiAPI:
 
         self._url = (url or os.environ.get("GLPI_URL", "")).rstrip("/")
         if not self._url:
-            raise ValueError(
-                "A GLPI URL is required. Pass url= or set GLPI_URL."
-            )
+            raise ValueError("A GLPI URL is required. Pass url= or set GLPI_URL.")
         self._app_token = app_token or os.environ.get("GLPI_APP_TOKEN")
         self._verify_ssl = verify_ssl
         self._timeout = timeout
@@ -157,6 +169,21 @@ class AsyncGlpiAPI:
         params: Optional[dict] = None,
         json: Any = None,
     ) -> Any:
+        body, _ = await self._request_with_headers(
+            method, path, headers=headers, params=params, json=json
+        )
+        return body
+
+    async def _request_with_headers(
+        self,
+        method: str,
+        path: str,
+        *,
+        headers: Optional[dict] = None,
+        params: Optional[dict] = None,
+        json: Any = None,
+    ) -> tuple:
+        """Like ``_request`` but returns ``(body, response_headers)``."""
         import aiohttp
 
         url = f"{self._base_url}/{path.lstrip('/')}"
@@ -169,18 +196,18 @@ class AsyncGlpiAPI:
 
         try:
             async with http.request(
-                method,
-                url,
+                method, url,
                 headers=merged_headers,
                 params=params,
                 json=json,
                 timeout=timeout,
             ) as response:
                 status = response.status
+                resp_headers = dict(response.headers)
                 log.debug("Response %s from %s", status, url)
 
                 if status == 204 or response.content_length == 0:
-                    return None
+                    return None, resp_headers
 
                 body = await response.json(content_type=None)
 
@@ -194,7 +221,7 @@ class AsyncGlpiAPI:
                     text = str(body)
 
                 _raise_for_glpi_error(_FakeResponse())  # type: ignore[arg-type]
-                return body
+                return body, resp_headers
 
         except aiohttp.ClientConnectorError as exc:
             raise GlpiConnectionError(f"Cannot reach GLPI at {self._url}: {exc}") from exc
@@ -212,8 +239,8 @@ class AsyncGlpiAPI:
         user_token: Optional[str] = None,
     ) -> None:
         """Authenticate and obtain a session token."""
-        username = username or os.environ.get("GLPI_USER")
-        password = password or os.environ.get("GLPI_PASSWORD")
+        username   = username   or os.environ.get("GLPI_USER")
+        password   = password   or os.environ.get("GLPI_PASSWORD")
         user_token = user_token or os.environ.get("GLPI_USER_TOKEN")
 
         auth_headers: dict = {}
@@ -228,6 +255,7 @@ class AsyncGlpiAPI:
 
         data = await self._request("GET", "initSession", headers=auth_headers)
         self._session_token = data["session_token"]
+        log.debug("Async session established.")
 
     async def logout(self) -> None:
         """Terminate the active GLPI session."""
@@ -236,6 +264,7 @@ class AsyncGlpiAPI:
                 await self._request("GET", "killSession")
             finally:
                 self._session_token = None
+                log.debug("Async session terminated.")
 
     # ------------------------------------------------------------------
     # Version
@@ -277,8 +306,7 @@ class AsyncGlpiAPI:
 
     async def set_active_entity(self, entity_id: int, is_recursive: bool = False) -> None:
         await self._request(
-            "POST",
-            "changeActiveEntities",
+            "POST", "changeActiveEntities",
             json={"entities_id": entity_id, "is_recursive": int(is_recursive)},
         )
 
@@ -294,10 +322,88 @@ class AsyncGlpiAPI:
         return await self._request("GET", f"{itemtype}/{item_id}", params=params)
 
     async def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
+        """Return a single page of items (default range ``0-49``).
+
+        Use :meth:`get_all_pages` to retrieve all items automatically.
+        """
         params = _boolify_params(kwargs)
         if "range" not in params:
-            params["range"] = "0-49"
+            params["range"] = f"0-{DEFAULT_PAGE_SIZE - 1}"
         return await self._request("GET", itemtype, params=params)
+
+    async def get_all_pages(
+        self,
+        itemtype: str,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        **kwargs: Any,
+    ) -> list:
+        """Fetch **all** items of *itemtype* by iterating pages automatically.
+
+        Parameters
+        ----------
+        itemtype : str
+        page_size : int
+            Items per request (default: 50).
+        **kwargs
+            Extra GLPI parameters: ``sort``, ``order``, ``searchText``,
+            ``is_deleted``, ``expand_dropdowns``, etc.
+
+        Returns
+        -------
+        list
+            All matching items as a flat list of dicts.
+        """
+        results: list = []
+        async for page in self.iter_pages(itemtype, page_size=page_size, **kwargs):
+            results.extend(page)
+        return results
+
+    async def iter_pages(
+        self,
+        itemtype: str,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        **kwargs: Any,
+    ) -> AsyncIterator[list]:
+        """Yield one page of items at a time asynchronously.
+
+        Parameters
+        ----------
+        itemtype : str
+        page_size : int
+        **kwargs
+            Same as :meth:`get_all_pages`.
+
+        Yields
+        ------
+        list
+            One page per iteration.
+        """
+        params = _boolify_params(kwargs)
+        start = 0
+        fetched = 0
+
+        while True:
+            end = start + page_size - 1
+            params["range"] = f"{start}-{end}"
+
+            page_items, resp_headers = await self._request_with_headers(
+                "GET", itemtype, params=params
+            )
+
+            if not page_items:
+                return
+
+            fetched += len(page_items)
+            yield page_items
+
+            total = _parse_content_range(resp_headers.get("Content-Range", ""))
+
+            if total is not None and fetched >= total:
+                return
+            if len(page_items) < page_size:
+                return
+
+            start += page_size
 
     async def search(self, itemtype: str, **kwargs: Any) -> dict:
         params = _boolify_params(kwargs)
