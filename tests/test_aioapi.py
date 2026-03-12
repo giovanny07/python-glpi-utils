@@ -148,7 +148,7 @@ async def test_async_logout_clears_token():
 @pytest.mark.asyncio
 async def test_async_get_version():
     api = _make_async_api()
-    mock_cm = _mock_aiohttp_response(200, {"glpi_version": "11.0.0"})
+    mock_cm = _mock_aiohttp_response(200, {"cfg_glpi": {"glpi_version": "11.0.0"}})
 
     with patch("aiohttp.ClientSession.request", return_value=mock_cm):
         v = await api.get_version()

@@ -277,8 +277,9 @@ class AsyncGlpiAPI:
 
     async def get_version(self) -> GLPIVersion:
         """Fetch and cache the GLPI server version."""
-        data = await self._request("GET", "getGlpiVersion")
-        self._version = GLPIVersion(data.get("glpi_version", "0.0.0"))
+        data = await self._request("GET", "getGlpiConfig")
+        raw = data.get("cfg_glpi", {}).get("glpi_version") or data.get("glpi_version", "0.0.0")
+        self._version = GLPIVersion(raw)
         return self._version
 
     # ------------------------------------------------------------------

@@ -250,7 +250,7 @@ class TestGlpiAPIVersion(unittest.TestCase):
 
     @patch("requests.Session.request")
     def test_version_returns_glpiversion(self, mock_req):
-        mock_req.return_value = mock_response(200, {"glpi_version": "11.0.0"})
+        mock_req.return_value = mock_response(200, {"cfg_glpi": {"glpi_version": "11.0.0"}})
         api = make_api()
         v = api.version
         self.assertIsInstance(v, GLPIVersion)
@@ -258,7 +258,7 @@ class TestGlpiAPIVersion(unittest.TestCase):
 
     @patch("requests.Session.request")
     def test_version_cached_after_first_call(self, mock_req):
-        mock_req.return_value = mock_response(200, {"glpi_version": "11.0.0"})
+        mock_req.return_value = mock_response(200, {"cfg_glpi": {"glpi_version": "11.0.0"}})
         api = make_api()
         _ = api.version
         _ = api.version
@@ -267,7 +267,7 @@ class TestGlpiAPIVersion(unittest.TestCase):
 
     @patch("requests.Session.request")
     def test_version_comparison_works(self, mock_req):
-        mock_req.return_value = mock_response(200, {"glpi_version": "11.0.0"})
+        mock_req.return_value = mock_response(200, {"cfg_glpi": {"glpi_version": "11.0.0"}})
         api = make_api()
         self.assertTrue(api.version > 10.0)
         self.assertTrue(api.version >= "11.0.0")

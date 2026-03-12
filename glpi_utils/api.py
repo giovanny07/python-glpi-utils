@@ -392,8 +392,9 @@ class GlpiAPI:
     def version(self) -> GLPIVersion:
         """GLPI server version as a :class:`~glpi_utils.version.GLPIVersion`."""
         if self._version is None:
-            data = self._request("GET", "getGlpiVersion")
-            self._version = GLPIVersion(data.get("glpi_version", "0.0.0"))
+            data = self._request("GET", "getGlpiConfig")
+            raw = data.get("cfg_glpi", {}).get("glpi_version") or data.get("glpi_version", "0.0.0")
+            self._version = GLPIVersion(raw)
         return self._version
 
     # ------------------------------------------------------------------
@@ -436,7 +437,7 @@ class GlpiAPI:
 
     def get_glpi_config(self) -> dict:
         """Return global GLPI configuration."""
-        return self._request("GET", "getGlpiVersion")
+        return self._request("GET", "getGlpiConfig")
 
     # ------------------------------------------------------------------
     # Item CRUD
