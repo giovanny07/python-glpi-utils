@@ -20,7 +20,7 @@ True
 from __future__ import annotations
 
 import re
-from typing import Union
+from typing import Any, Union
 
 
 _VersionLike = Union[str, int, float, "GLPIVersion"]

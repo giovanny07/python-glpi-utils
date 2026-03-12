@@ -12,6 +12,8 @@ Exception hierarchy for python-glpi-utils.
     └── GlpiConnectionError     ← network / transport error
 """
 
+from typing import Optional
+
 
 class GlpiError(Exception):
     """Base exception for all glpi_utils errors."""
@@ -26,9 +28,9 @@ class GlpiAPIError(GlpiError):
 
     Attributes
     ----------
-    status_code : int | None
+    status_code : int or None
         HTTP status code returned by the server.
-    error_code : str | None
+    error_code : str or None
         GLPI error identifier (e.g. ``"ERROR_SESSION_TOKEN_INVALID"``).
     message : str
         Human-readable error message.
@@ -37,8 +39,8 @@ class GlpiAPIError(GlpiError):
     def __init__(
         self,
         message: str,
-        status_code: int | None = None,
-        error_code: str | None = None,
+        status_code: Optional[int] = None,
+        error_code: Optional[str] = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code

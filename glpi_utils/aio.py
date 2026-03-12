@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import os
 from base64 import b64encode
-from typing import Any
+from typing import Any, Optional
 
 from ._resource import AsyncItemProxy
 from .api import _ITEMTYPE_MAP, _boolify_params, _raise_for_glpi_error
@@ -47,20 +47,20 @@ class AsyncGlpiAPI:
 
         async with AsyncGlpiAPI(url="https://glpi.example.com") as api:
             await api.login(username="glpi", password="glpi")
-            print(api.version)
+            version = await api.get_version()
 
     Parameters
     ----------
-    url : str | None
-    app_token : str | None
+    url : str or None
+    app_token : str or None
     verify_ssl : bool
     timeout : int
     """
 
     def __init__(
         self,
-        url: str | None = None,
-        app_token: str | None = None,
+        url: Optional[str] = None,
+        app_token: Optional[str] = None,
         verify_ssl: bool = True,
         timeout: int = 30,
     ) -> None:
@@ -81,10 +81,10 @@ class AsyncGlpiAPI:
         self._verify_ssl = verify_ssl
         self._timeout = timeout
 
-        self._session_token: str | None = None
-        self._http: Any = None  # aiohttp.ClientSession, created lazily
-        self._version: GLPIVersion | None = None
-        self._proxies: dict[str, AsyncItemProxy] = {}
+        self._session_token: Optional[str] = None
+        self._http: Any = None
+        self._version: Optional[GLPIVersion] = None
+        self._proxies: dict = {}
 
     # ------------------------------------------------------------------
     # Async context manager
@@ -140,8 +140,8 @@ class AsyncGlpiAPI:
             self._http = aiohttp.ClientSession(connector=connector)
         return self._http
 
-    def _default_headers(self) -> dict[str, str]:
-        headers: dict[str, str] = {"Content-Type": "application/json"}
+    def _default_headers(self) -> dict:
+        headers: dict = {"Content-Type": "application/json"}
         if self._app_token:
             headers["App-Token"] = self._app_token
         if self._session_token:
@@ -153,8 +153,8 @@ class AsyncGlpiAPI:
         method: str,
         path: str,
         *,
-        headers: dict | None = None,
-        params: dict | None = None,
+        headers: Optional[dict] = None,
+        params: Optional[dict] = None,
         json: Any = None,
     ) -> Any:
         import aiohttp
@@ -184,7 +184,6 @@ class AsyncGlpiAPI:
 
                 body = await response.json(content_type=None)
 
-                # Build a minimal sync-compatible response object for the helper
                 class _FakeResponse:
                     status_code = status
                     content = True
@@ -208,16 +207,16 @@ class AsyncGlpiAPI:
 
     async def login(
         self,
-        username: str | None = None,
-        password: str | None = None,
-        user_token: str | None = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        user_token: Optional[str] = None,
     ) -> None:
         """Authenticate and obtain a session token."""
         username = username or os.environ.get("GLPI_USER")
         password = password or os.environ.get("GLPI_PASSWORD")
         user_token = user_token or os.environ.get("GLPI_USER_TOKEN")
 
-        auth_headers: dict[str, str] = {}
+        auth_headers: dict = {}
 
         if user_token:
             auth_headers["Authorization"] = f"user_token {user_token}"
@@ -225,9 +224,7 @@ class AsyncGlpiAPI:
             credentials = b64encode(f"{username}:{password}".encode()).decode()
             auth_headers["Authorization"] = f"Basic {credentials}"
         else:
-            raise GlpiAuthError(
-                "Provide username+password or user_token."
-            )
+            raise GlpiAuthError("Provide username+password or user_token.")
 
         data = await self._request("GET", "initSession", headers=auth_headers)
         self._session_token = data["session_token"]
@@ -245,7 +242,7 @@ class AsyncGlpiAPI:
     # ------------------------------------------------------------------
 
     @property
-    def version(self) -> GLPIVersion | None:
+    def version(self) -> Optional[GLPIVersion]:
         """Return cached version (call ``await api.get_version()`` to fetch)."""
         return self._version
 
@@ -259,7 +256,7 @@ class AsyncGlpiAPI:
     # Session utilities
     # ------------------------------------------------------------------
 
-    async def get_my_profiles(self) -> list[dict]:
+    async def get_my_profiles(self) -> list:
         return (await self._request("GET", "getMyProfiles"))["myprofiles"]
 
     async def get_active_profile(self) -> dict:
@@ -268,7 +265,7 @@ class AsyncGlpiAPI:
     async def set_active_profile(self, profile_id: int) -> None:
         await self._request("POST", "changeActiveProfile", json={"profiles_id": profile_id})
 
-    async def get_my_entities(self, is_recursive: bool = False) -> list[dict]:
+    async def get_my_entities(self, is_recursive: bool = False) -> list:
         return (
             await self._request(
                 "GET", "getMyEntities", params={"is_recursive": int(is_recursive)}
@@ -296,7 +293,7 @@ class AsyncGlpiAPI:
         params = _boolify_params(kwargs)
         return await self._request("GET", f"{itemtype}/{item_id}", params=params)
 
-    async def get_all_items(self, itemtype: str, **kwargs: Any) -> list[dict]:
+    async def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
         params = _boolify_params(kwargs)
         if "range" not in params:
             params["range"] = "0-49"
@@ -306,28 +303,24 @@ class AsyncGlpiAPI:
         params = _boolify_params(kwargs)
         return await self._request("GET", f"search/{itemtype}", params=params)
 
-    async def create_item(
-        self, itemtype: str, input_data: dict | list[dict], **kwargs: Any
-    ) -> dict | list:
-        payload: dict[str, Any] = {"input": input_data}
+    async def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
+        payload: dict = {"input": input_data}
         payload.update(kwargs)
         return await self._request("POST", itemtype, json=payload)
 
-    async def update_item(
-        self, itemtype: str, input_data: dict | list[dict], **kwargs: Any
-    ) -> list:
-        payload: dict[str, Any] = {"input": input_data}
+    async def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
+        payload: dict = {"input": input_data}
         payload.update(kwargs)
         return await self._request("PUT", itemtype, json=payload)
 
     async def delete_item(
         self,
         itemtype: str,
-        input_data: dict | list[dict],
+        input_data: Any,
         force_purge: bool = False,
         history: bool = True,
     ) -> list:
-        payload: dict[str, Any] = {
+        payload: dict = {
             "input": input_data,
             "force_purge": int(force_purge),
             "history": int(history),
@@ -340,7 +333,7 @@ class AsyncGlpiAPI:
 
     async def get_sub_items(
         self, itemtype: str, item_id: int, sub_itemtype: str, **kwargs: Any
-    ) -> list[dict]:
+    ) -> list:
         params = _boolify_params(kwargs)
         return await self._request(
             "GET", f"{itemtype}/{item_id}/{sub_itemtype}", params=params
@@ -354,11 +347,11 @@ class AsyncGlpiAPI:
         input_data: dict,
         **kwargs: Any,
     ) -> dict:
-        payload: dict[str, Any] = {"input": input_data}
+        payload: dict = {"input": input_data}
         payload.update(kwargs)
         return await self._request(
             "POST", f"{itemtype}/{item_id}/{sub_itemtype}", json=payload
         )
 
-    async def list_item_types(self) -> list[str]:
+    async def list_item_types(self) -> list:
         return await self._request("GET", "listItemtypes")

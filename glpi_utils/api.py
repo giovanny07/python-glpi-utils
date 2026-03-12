@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import os
 from base64 import b64encode
-from typing import Any
+from typing import Any, Optional
 
 import requests
 from requests import Response, Session
@@ -41,7 +41,7 @@ log = logging.getLogger(__name__)
 # Module-level helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-_ITEMTYPE_MAP: dict[str, str] = {
+_ITEMTYPE_MAP: dict = {
     # attr name  →  GLPI itemtype
     "ticket": "Ticket",
     "computer": "Computer",
@@ -78,7 +78,6 @@ def _raise_for_glpi_error(response: Response) -> None:
     if status == 200 or status == 201:
         return
 
-    # Try to get the GLPI error payload
     try:
         body = response.json()
         if isinstance(body, list) and len(body) >= 2:
@@ -113,10 +112,10 @@ class GlpiAPI:
 
     Parameters
     ----------
-    url : str | None
+    url : str or None
         Base URL of the GLPI server, e.g. ``"https://glpi.example.com"``.
         Can be supplied via the ``GLPI_URL`` environment variable.
-    app_token : str | None
+    app_token : str or None
         Application token configured in GLPI → Setup → General → API.
         Optional but recommended for production use.
         Can be supplied via ``GLPI_APP_TOKEN``.
@@ -150,8 +149,8 @@ class GlpiAPI:
 
     def __init__(
         self,
-        url: str | None = None,
-        app_token: str | None = None,
+        url: Optional[str] = None,
+        app_token: Optional[str] = None,
         verify_ssl: bool = True,
         timeout: int = 30,
     ) -> None:
@@ -164,12 +163,12 @@ class GlpiAPI:
         self._verify_ssl = verify_ssl
         self._timeout = timeout
 
-        self._session_token: str | None = None
+        self._session_token: Optional[str] = None
         self._http = Session()
-        self._version: GLPIVersion | None = None
+        self._version: Optional[GLPIVersion] = None
 
         # Cached ItemProxy instances
-        self._proxies: dict[str, ItemProxy] = {}
+        self._proxies: dict = {}
 
     # ------------------------------------------------------------------
     # Context-manager support
@@ -182,7 +181,7 @@ class GlpiAPI:
         if self._session_token:
             try:
                 self.logout()
-            except GlpiError:
+            except Exception:
                 pass
 
     # ------------------------------------------------------------------
@@ -195,8 +194,6 @@ class GlpiAPI:
             if lower not in self._proxies:
                 self._proxies[lower] = ItemProxy(self, _ITEMTYPE_MAP[lower])
             return self._proxies[lower]
-        # Allow arbitrary item-types via CamelCase attribute access
-        # e.g. api.ITILCategory → ItemProxy("ITILCategory")
         raise AttributeError(
             f"{self.__class__.__name__!r} object has no attribute {name!r}. "
             f"Use api.item('YourItemtype') to access non-standard item types."
@@ -222,8 +219,8 @@ class GlpiAPI:
     def _base_url(self) -> str:
         return f"{self._url}/apirest.php"
 
-    def _default_headers(self) -> dict[str, str]:
-        headers: dict[str, str] = {"Content-Type": "application/json"}
+    def _default_headers(self) -> dict:
+        headers: dict = {"Content-Type": "application/json"}
         if self._app_token:
             headers["App-Token"] = self._app_token
         if self._session_token:
@@ -235,8 +232,8 @@ class GlpiAPI:
         method: str,
         path: str,
         *,
-        headers: dict | None = None,
-        params: dict | None = None,
+        headers: Optional[dict] = None,
+        params: Optional[dict] = None,
         json: Any = None,
     ) -> Any:
         url = f"{self._base_url}/{path.lstrip('/')}"
@@ -272,9 +269,9 @@ class GlpiAPI:
 
     def login(
         self,
-        username: str | None = None,
-        password: str | None = None,
-        user_token: str | None = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        user_token: Optional[str] = None,
     ) -> None:
         """Authenticate against GLPI and store the session token.
 
@@ -288,15 +285,15 @@ class GlpiAPI:
 
         Parameters
         ----------
-        username : str | None
-        password : str | None
-        user_token : str | None
+        username : str or None
+        password : str or None
+        user_token : str or None
         """
         username = username or os.environ.get("GLPI_USER")
         password = password or os.environ.get("GLPI_PASSWORD")
         user_token = user_token or os.environ.get("GLPI_USER_TOKEN")
 
-        auth_headers: dict[str, str] = {}
+        auth_headers: dict = {}
 
         if user_token:
             auth_headers["Authorization"] = f"user_token {user_token}"
@@ -338,7 +335,7 @@ class GlpiAPI:
     # Session utilities
     # ------------------------------------------------------------------
 
-    def get_my_profiles(self) -> list[dict]:
+    def get_my_profiles(self) -> list:
         """Return profiles available to the current user."""
         return self._request("GET", "getMyProfiles")["myprofiles"]
 
@@ -350,7 +347,7 @@ class GlpiAPI:
         """Switch to a different profile."""
         self._request("POST", "changeActiveProfile", json={"profiles_id": profile_id})
 
-    def get_my_entities(self, is_recursive: bool = False) -> list[dict]:
+    def get_my_entities(self, is_recursive: bool = False) -> list:
         """Return entities accessible to the current user."""
         return self._request(
             "GET", "getMyEntities", params={"is_recursive": int(is_recursive)}
@@ -373,7 +370,7 @@ class GlpiAPI:
         return self._request("GET", "getFullSession")["session"]
 
     def get_glpi_config(self) -> dict:
-        """Return global GLPI configuration (``$CFG_GLPI``)."""
+        """Return global GLPI configuration."""
         return self._request("GET", "getGlpiVersion")
 
     # ------------------------------------------------------------------
@@ -381,96 +378,43 @@ class GlpiAPI:
     # ------------------------------------------------------------------
 
     def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict:
-        """Return a single item by ID.
-
-        Parameters
-        ----------
-        itemtype : str
-        item_id : int
-        **kwargs
-            Optional GLPI API parameters: ``expand_dropdowns``,
-            ``get_hateoas``, ``with_networkports``, ``with_infocoms``,
-            ``with_documents``, ``with_logs``, etc.
-        """
+        """Return a single item by ID."""
         params = _boolify_params(kwargs)
         return self._request("GET", f"{itemtype}/{item_id}", params=params)
 
-    def get_all_items(self, itemtype: str, **kwargs: Any) -> list[dict]:
-        """Return all items of *itemtype* (handles pagination automatically).
-
-        Parameters
-        ----------
-        itemtype : str
-        **kwargs
-            ``range`` (default ``"0-49"``), ``sort``, ``order``,
-            ``searchText``, ``is_deleted``, ``add_keys_names``,
-            ``expand_dropdowns``, etc.
-        """
+    def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
+        """Return all items of *itemtype* (handles pagination automatically)."""
         params = _boolify_params(kwargs)
         if "range" not in params:
             params["range"] = "0-49"
         return self._request("GET", itemtype, params=params)
 
     def search(self, itemtype: str, **kwargs: Any) -> dict:
-        """Run the GLPI search engine.
-
-        Parameters
-        ----------
-        itemtype : str
-            ``"AllAssets"`` for a cross-type search.
-        **kwargs
-            ``criteria``, ``metacriteria``, ``sort``, ``order``,
-            ``range``, ``forcedisplay``, ``rawdata``, ``withindexes``.
-        """
+        """Run the GLPI search engine."""
         params = _boolify_params(kwargs)
         return self._request("GET", f"search/{itemtype}", params=params)
 
-    def create_item(
-        self, itemtype: str, input_data: dict | list[dict], **kwargs: Any
-    ) -> dict | list:
-        """Create one or several items.
-
-        Parameters
-        ----------
-        itemtype : str
-        input_data : dict | list[dict]
-            For a single item pass a ``dict``; for bulk creation a list.
-        """
-        payload: dict[str, Any] = {"input": input_data}
+    def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
+        """Create one or several items."""
+        payload: dict = {"input": input_data}
         payload.update(kwargs)
         return self._request("POST", itemtype, json=payload)
 
-    def update_item(
-        self, itemtype: str, input_data: dict | list[dict], **kwargs: Any
-    ) -> list:
-        """Update one or several items.
-
-        Each item dict must contain an ``"id"`` key.
-        """
-        payload: dict[str, Any] = {"input": input_data}
+    def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
+        """Update one or several items. Each item dict must contain an ``"id"`` key."""
+        payload: dict = {"input": input_data}
         payload.update(kwargs)
         return self._request("PUT", itemtype, json=payload)
 
     def delete_item(
         self,
         itemtype: str,
-        input_data: dict | list[dict],
+        input_data: Any,
         force_purge: bool = False,
         history: bool = True,
     ) -> list:
-        """Delete one or several items.
-
-        Parameters
-        ----------
-        itemtype : str
-        input_data : dict | list[dict]
-            Each dict must contain an ``"id"`` key.
-        force_purge : bool
-            Permanently delete (bypass trash).
-        history : bool
-            Whether to log the deletion in history.
-        """
-        payload: dict[str, Any] = {
+        """Delete one or several items."""
+        payload: dict = {
             "input": input_data,
             "force_purge": int(force_purge),
             "history": int(history),
@@ -487,11 +431,8 @@ class GlpiAPI:
         item_id: int,
         sub_itemtype: str,
         **kwargs: Any,
-    ) -> list[dict]:
-        """Return sub-items of a given type for a parent item.
-
-        Examples: followups, tasks, solutions of a ticket.
-        """
+    ) -> list:
+        """Return sub-items of a given type for a parent item."""
         params = _boolify_params(kwargs)
         return self._request(
             "GET", f"{itemtype}/{item_id}/{sub_itemtype}", params=params
@@ -506,7 +447,7 @@ class GlpiAPI:
         **kwargs: Any,
     ) -> dict:
         """Add a sub-item to a parent resource."""
-        payload: dict[str, Any] = {"input": input_data}
+        payload: dict = {"input": input_data}
         payload.update(kwargs)
         return self._request(
             "POST", f"{itemtype}/{item_id}/{sub_itemtype}", json=payload
@@ -516,7 +457,7 @@ class GlpiAPI:
     # List item types
     # ------------------------------------------------------------------
 
-    def list_item_types(self) -> list[str]:
+    def list_item_types(self) -> list:
         """Return the list of available item-type names in this GLPI instance."""
         return self._request("GET", "listItemtypes")
 
@@ -524,15 +465,15 @@ class GlpiAPI:
     # Documents
     # ------------------------------------------------------------------
 
-    def upload_document(self, file_path: str, document_name: str | None = None) -> dict:
+    def upload_document(self, file_path: str, document_name: Optional[str] = None) -> dict:
         """Upload a file as a GLPI Document.
 
         Parameters
         ----------
         file_path : str
             Local path to the file to upload.
-        document_name : str | None
-            Optional display name for the document. Defaults to the file basename.
+        document_name : str or None
+            Optional display name. Defaults to the file basename.
         """
         import json as _json
         from pathlib import Path
@@ -566,10 +507,9 @@ class GlpiAPI:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def _boolify_params(params: dict[str, Any]) -> dict[str, Any]:
+def _boolify_params(params: dict) -> dict:
     """Convert Python booleans to GLPI-expected ``0``/``1`` integers."""
     return {k: int(v) if isinstance(v, bool) else v for k, v in params.items()}
 
 
-# Avoid circular-import issues when exceptions.py imports from this module
-from .exceptions import GlpiError  # noqa: E402 – keep at bottom
+from .exceptions import GlpiError  # noqa: E402
