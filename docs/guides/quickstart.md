@@ -1,90 +1,138 @@
 # Quick Start
 
-## Synchronous
+## Environment variables (recommended)
 
-```python
-from glpi_utils import GlpiAPI
-
-api = GlpiAPI(url="https://glpi.example.com", app_token="YOUR_APP_TOKEN")
-api.login(username="glpi", password="glpi")
-
-# Server version
-print(api.version)        # GLPIVersion('11.0.0')
-print(api.version > 10.0) # True
-
-# Fetch tickets (single page)
-tickets = api.ticket.get_all(range="0-9", expand_dropdowns=True)
-
-# Fetch ALL tickets (auto-pagination)
-all_tickets = api.ticket.get_all_pages()
-print(f"{len(all_tickets)} tickets total")
-
-api.logout()
-```
-
-## Asynchronous
-
-```python
-import asyncio
-from glpi_utils import AsyncGlpiAPI
-
-async def main():
-    api = AsyncGlpiAPI(url="https://glpi.example.com")
-    await api.login(username="glpi", password="glpi")
-
-    version = await api.get_version()
-    print(f"GLPI {version}")
-
-    all_tickets = await api.ticket.get_all_pages()
-    print(f"{len(all_tickets)} tickets total")
-
-    await api.logout()
-
-asyncio.run(main())
-```
-
-## Context manager (recommended)
-
-The context manager calls `logout()` automatically — even if an exception occurs:
-
-```python
-# Sync
-with GlpiAPI(url="https://glpi.example.com") as api:
-    api.login(username="glpi", password="glpi")
-    computers = api.computer.get_all_pages()
-
-# Async
-async with AsyncGlpiAPI(url="https://glpi.example.com") as api:
-    await api.login(username="glpi", password="glpi")
-    computers = await api.computer.get_all_pages()
-```
-
-## OAuth2
-
-```python
-from glpi_utils.oauth import GlpiOAuthClient
-
-with GlpiOAuthClient(
-    url="https://glpi.example.com",
-    client_id="my-app",
-    client_secret="my-secret",
-) as api:
-    api.authenticate()
-    tickets = api.ticket.get_all_pages()
-```
-
-## Environment variables
-
-Avoid hardcoding credentials by using environment variables:
+Avoid hardcoding credentials — set these before running any script:
 
 ```bash
 export GLPI_URL=https://glpi.example.com
-export GLPI_APP_TOKEN=your_app_token
+export GLPI_APP_TOKEN=your_app_token       # optional but recommended
+export GLPI_USER_TOKEN=your_user_token     # personal token from your profile
+# or
 export GLPI_USER=glpi
 export GLPI_PASSWORD=glpi
 ```
 
+---
+
+## Synchronous
+
 ```python
-api = GlpiAPI()   # reads GLPI_URL + GLPI_APP_TOKEN
-api.login()       # reads GLPI_USER + GLPI_PASSWORD
+import os
+from glpi_utils import GlpiAPI, GlpiNotFoundError
+
+with GlpiAPI(url=os.environ["GLPI_URL"],
+             app_token=os.environ.get("GLPI_APP_TOKEN", "")) as api:
+    api.login(user_token=os.environ["GLPI_USER_TOKEN"])
+
+    # Version
+    print(f"GLPI {api.version}")     # GLPI 10.0.19
+    print(api.version >= 10)         # True
+
+    # Always use a real ID from get_all — don't hardcode IDs
+    tickets = api.ticket.get_all(range="0-4", expand_dropdowns=True)
+    for t in tickets:
+        print(f"[{t['id']}] {t['name']}")
+
+    if tickets:
+        detail = api.ticket.get(tickets[0]["id"])
+        print(detail["name"])
+
+    # All tickets with auto-pagination
+    all_tickets = api.ticket.get_all_pages()
+    print(f"Total: {len(all_tickets)} tickets")
+
+    # Create / update / delete
+    new = api.ticket.create({
+        "name": "Service degraded",
+        "content": "Users report slow response times.",
+        "type": 1, "status": 1, "urgency": 3, "impact": 3, "priority": 3,
+    })
+    api.ticket.update({"id": new["id"], "status": 2})
+    api.ticket.delete({"id": new["id"]}, force_purge=True)
+
+    # Error handling
+    try:
+        api.ticket.get(999999999)
+    except GlpiNotFoundError:
+        print("Not found ✓")
 ```
+
+---
+
+## Asynchronous
+
+```python
+import asyncio, os
+from glpi_utils import AsyncGlpiAPI, GlpiNotFoundError
+
+async def main():
+    async with AsyncGlpiAPI(url=os.environ["GLPI_URL"],
+                            app_token=os.environ.get("GLPI_APP_TOKEN", "")) as api:
+        await api.login(user_token=os.environ["GLPI_USER_TOKEN"])
+
+        version = await api.get_version()
+        print(f"GLPI {version}")
+
+        tickets = await api.ticket.get_all(range="0-4", expand_dropdowns=True)
+        for t in tickets:
+            print(f"[{t['id']}] {t['name']}")
+
+        all_tickets = await api.ticket.get_all_pages()
+        print(f"Total: {len(all_tickets)} tickets")
+
+        async for page in api.ticket.iter_pages(page_size=20):
+            print(f"Page with {len(page)} tickets")
+
+asyncio.run(main())
+```
+
+---
+
+## OAuth2 (GLPI 11+ only)
+
+```bash
+export GLPI_URL=https://glpi.example.com
+export GLPI_OAUTH_CLIENT_ID=your_client_id
+export GLPI_OAUTH_CLIENT_SECRET=your_client_secret
+```
+
+```python
+import asyncio, os
+from glpi_utils.oauth import GlpiOAuthClient, AsyncGlpiOAuthClient
+
+# Sync
+with GlpiOAuthClient(
+    url=os.environ["GLPI_URL"],
+    client_id=os.environ["GLPI_OAUTH_CLIENT_ID"],
+    client_secret=os.environ["GLPI_OAUTH_CLIENT_SECRET"],
+) as api:
+    api.authenticate()
+    tickets = api.ticket.get_all_pages()
+    print(f"Total: {len(tickets)} tickets")
+
+# Async
+async def main():
+    async with AsyncGlpiOAuthClient(
+        url=os.environ["GLPI_URL"],
+        client_id=os.environ["GLPI_OAUTH_CLIENT_ID"],
+        client_secret=os.environ["GLPI_OAUTH_CLIENT_SECRET"],
+    ) as api:
+        await api.authenticate()
+        tickets = await api.ticket.get_all_pages()
+        print(f"Total: {len(tickets)} tickets")
+
+asyncio.run(main())
+```
+
+---
+
+## Full example scripts
+
+The `examples/` directory in the repository has ready-to-run scripts:
+
+| Script | Description |
+|--------|-------------|
+| `examples/api/basic_usage.py` | Sync client — version, CRUD, pagination, sub-items, error handling |
+| `examples/async_api/basic_async.py` | Async client — same coverage |
+| `examples/oauth2/basic_oauth2.py` | OAuth2 sync + async — GLPI 11+ |
