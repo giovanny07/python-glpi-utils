@@ -7,6 +7,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.3.3] – 2026-03-12
+
+### Fixed
+
+- **Version detection:** `cfg_glpi.version` is the correct key in GLPI 10.x — not `glpi_version`.
+  The version property now probes `cfg_glpi.version` → `cfg_glpi.glpi_version` → `glpi_version`
+  → `getFullSession` fallback, making it robust across GLPI 9.x / 10.x / 11.x.
+- **HTTP 206 Partial Content not accepted:** GLPI returns 206 (not 200) for paginated list
+  responses. `_raise_for_glpi_error` previously treated 206 as an error, causing `get_all`
+  and `get_all_pages` to raise `GlpiAPIError` with the first ticket as the "error message".
+  Fixed in `api.py` and `oauth.py`.
+
+### Changed
+
+- **GLPI compatibility clarified:** The legacy REST API (`/apirest.php`) works with
+  **GLPI 9.1 and above** (not just 11.x as previously documented). Confirmed working
+  on GLPI 10.0.19. OAuth2 (`/api.php`) remains GLPI 11+ only.
+- Updated `README.md`, `setup.cfg`, `mkdocs.yml` and all documentation pages to reflect
+  `GLPI ≥ 9.1` support for the legacy API clients.
+
+---
+
 ## [1.3.0] – 2026-03-12
 
 ### Added

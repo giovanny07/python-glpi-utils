@@ -1,3 +1,6 @@
+!!! warning "GLPI 11+ only"
+    The OAuth2 high-level API (`/api.php`) was introduced in GLPI 11. If you are running GLPI 9.x or 10.x, use `GlpiAPI` or `AsyncGlpiAPI` instead.
+
 # OAuth2 (High-level API)
 
 GLPI 11 introduced a modern REST API at `/api.php` that uses OAuth2 for

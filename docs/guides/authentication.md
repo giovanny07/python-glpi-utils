@@ -55,7 +55,7 @@ with GlpiAPI(url="https://glpi.example.com") as api:
 
 ## High-level API (`/api.php`) — OAuth2
 
-GLPI 11 introduced a modern OAuth2-based API. Use `GlpiOAuthClient` or `AsyncGlpiOAuthClient`.
+GLPI 11 introduced a modern OAuth2-based API (`/api.php`). This section only applies to GLPI 11+. Use `GlpiOAuthClient` or `AsyncGlpiOAuthClient`.
 
 ### Client credentials grant
 
@@ -121,5 +121,5 @@ api.authenticate()
 |----------|--------------------|
 | Scripts, automation, most use cases | `GlpiAPI` |
 | Async frameworks (FastAPI, etc.) | `AsyncGlpiAPI` |
-| GLPI 11 OAuth2 app registered | `GlpiOAuthClient` |
+| GLPI 11+ OAuth2 app registered | `GlpiOAuthClient` |
 | Async + OAuth2 | `AsyncGlpiOAuthClient` |

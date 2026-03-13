@@ -5,20 +5,22 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/glpi-utils.svg)](https://pypi.org/project/glpi-utils/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**python-glpi-utils** is a Python library for working with the [GLPI 11](https://glpi-project.org/) REST API.
+**python-glpi-utils** is a Python library for working with the [GLPI](https://glpi-project.org/) REST API.
 
 It provides:
 
 - A **synchronous** client (`GlpiAPI`) powered by `requests`.
 - An **asynchronous** client (`AsyncGlpiAPI`) powered by `aiohttp`.
-- **OAuth2 clients** (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11 high-level API (`/api.php`) with automatic token refresh.
+- **OAuth2 clients** (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11+ high-level API (`/api.php`) with automatic token refresh.
 - **Auto-pagination** (`get_all_pages` / `iter_pages`) — fetch every item across all pages with one call.
 - Fluent **item-type accessors** (`api.ticket`, `api.computer`, `api.user`, …) so you write `api.ticket.get_all_pages()` instead of building raw HTTP calls.
 - A `SensitiveFilter` that masks passwords and tokens in debug logs automatically.
-- A **`GLPIVersion`** helper for comparing GLPI API versions.
+- A **`GLPIVersion`** helper for comparing GLPI versions.
 - A clean **exception hierarchy** so you can catch exactly what you need.
 
-> **Scope:** This library supports both the GLPI 11 legacy REST API (`/apirest.php`) and the high-level OAuth2 API (`/api.php`).
+> **Compatibility:**
+> - Legacy REST API (`/apirest.php`): **GLPI 9.1 and above** (tested on 10.x and 11.x)
+> - High-level OAuth2 API (`/api.php`): **GLPI 11+ only**
 
 ---
 
@@ -27,7 +29,7 @@ It provides:
 | Dependency | Version |
 |------------|---------|
 | Python     | ≥ 3.9   |
-| GLPI       | 11.x    |
+| GLPI       | ≥ 9.1   |
 | requests   | ≥ 2.28  |
 | aiohttp    | ≥ 3.9 *(async only)* |
 
@@ -67,7 +69,7 @@ from glpi_utils import GlpiAPI
 api = GlpiAPI(url="https://glpi.example.com", app_token="YOUR_APP_TOKEN")
 api.login(username="glpi", password="glpi")
 
-print("GLPI version:", api.version)   # GLPIVersion('11.0.0')
+print("GLPI version:", api.version)   # GLPIVersion('10.0.19')
 print(api.version > 10.0)             # True
 
 tickets = api.ticket.get_all(range="0-9", expand_dropdowns=True)
@@ -176,7 +178,7 @@ articles = proxy.get_all(range="0-4")
 By default `get_all()` returns a single page (50 items). Use `get_all_pages()` to retrieve everything automatically:
 
 ```python
-# All tickets — GLPI handles pagination transparently
+# All tickets — pagination handled transparently
 all_tickets = api.ticket.get_all_pages()
 
 # With filters
@@ -210,9 +212,9 @@ async for page in api.ticket.iter_pages(page_size=100):
 
 ---
 
-## OAuth2 (High-level API)
+## OAuth2 (High-level API — GLPI 11+ only)
 
-For the GLPI 11 high-level API (`/api.php`), use the OAuth2 clients:
+For the GLPI 11+ high-level API (`/api.php`), use the OAuth2 clients:
 
 ```python
 from glpi_utils.oauth import GlpiOAuthClient
@@ -304,13 +306,13 @@ api.ticket.add_sub_item(1, "ITILFollowup", {
 
 ```python
 ver = api.version
-print(type(ver).__name__, ver)   # GLPIVersion 11.0.0
+print(type(ver).__name__, ver)   # GLPIVersion 10.0.19
 
-print(ver > 10.0)      # True
-print(ver == "11.0.0") # True
-print(ver.major)       # 11
-print(ver.minor)       # 0
-print(ver.patch)       # 0
+print(ver > 10.0)       # True
+print(ver == "10.0.19") # True
+print(ver.major)        # 10
+print(ver.minor)        # 0
+print(ver.patch)        # 19
 ```
 
 ---
@@ -371,8 +373,7 @@ logging.getLogger("glpi_utils").setLevel(logging.DEBUG)
 ## Running the tests
 
 ```bash
-pip install -e .[async]
-pip install -r requirements-dev.txt
+pip install -e ".[async,dev]"
 pytest
 ```
 

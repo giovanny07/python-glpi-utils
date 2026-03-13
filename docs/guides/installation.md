@@ -2,12 +2,21 @@
 
 ## Requirements
 
-| Dependency | Version         |
-|------------|-----------------|
-| Python     | ≥ 3.9           |
-| GLPI       | 11.x            |
-| requests   | ≥ 2.28          |
+| Dependency | Version |
+|------------|---------|
+| Python     | ≥ 3.9   |
+| GLPI       | ≥ 9.1   |
+| requests   | ≥ 2.28  |
 | aiohttp    | ≥ 3.9 *(async only)* |
+
+### GLPI version compatibility
+
+| Client | Endpoint | GLPI version |
+|--------|----------|-------------|
+| `GlpiAPI` / `AsyncGlpiAPI` | `/apirest.php` | **≥ 9.1** — tested on 9.x, 10.x and 11.x |
+| `GlpiOAuthClient` / `AsyncGlpiOAuthClient` | `/api.php` | **11+ only** |
+
+The legacy REST API (`/apirest.php`) has been stable since GLPI 9.1. The OAuth2 high-level API (`/api.php`) was introduced in GLPI 11.
 
 ---
 
@@ -32,7 +41,7 @@ pip install glpi-utils[async]
 ```bash
 git clone https://github.com/giovanny07/python-glpi-utils
 cd python-glpi-utils
-pip install -e .[async]
+pip install -e ".[async]"
 ```
 
 For development (includes test and lint tools):
@@ -47,7 +56,7 @@ pip install -e ".[async,dev]"
 
 ```python
 import glpi_utils
-print(glpi_utils.__version__)  # 1.2.0
+print(glpi_utils.__version__)  # 1.3.3
 ```
 
 ---
@@ -60,6 +69,6 @@ Before using the library your GLPI server needs:
 2. **Application token** (optional but recommended) — *Setup → General → API → Add API client*
 3. **User token** (optional) — user profile page → *Remote access key*
 
-For the OAuth2 client (`/api.php`) you also need:
+For the OAuth2 client (`/api.php`) — GLPI 11+ only:
 
-4. **OAuth2 application** registered in GLPI — *Setup → OAuth2 applications*
+4. **OAuth2 application** registered in GLPI — *Setup → OAuth2 applications*# Installation

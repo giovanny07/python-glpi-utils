@@ -5,7 +5,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/glpi-utils.svg)](https://pypi.org/project/glpi-utils/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE)
 
-**python-glpi-utils** is a Python library for working with the [GLPI 11](https://glpi-project.org/) REST API.
+**python-glpi-utils** is a Python library for working with the [GLPI](https://glpi-project.org/) REST API.
 
 ---
 
@@ -13,12 +13,26 @@
 
 - 🔄 **Synchronous** client (`GlpiAPI`) powered by `requests`
 - ⚡ **Asynchronous** client (`AsyncGlpiAPI`) powered by `aiohttp`
-- 🔐 **OAuth2** clients (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11 high-level API with automatic token refresh
+- 🔐 **OAuth2** clients (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11+ high-level API with automatic token refresh
 - 📄 **Auto-pagination** — fetch every item across all pages with a single call (`get_all_pages` / `iter_pages`)
 - 🧩 **Fluent accessors** — write `api.ticket.get(1)` instead of building raw HTTP calls
 - 🔒 **`SensitiveFilter`** — masks passwords and tokens in debug logs automatically
 - 📦 **Clean exception hierarchy** — catch exactly what you need
 - ✅ **262 tests** across Python 3.9 – 3.13
+
+---
+
+## GLPI compatibility
+
+| Client | Endpoint | GLPI version |
+|--------|----------|-------------|
+| `GlpiAPI` | `/apirest.php` | **≥ 9.1** (tested on 10.x and 11.x) |
+| `AsyncGlpiAPI` | `/apirest.php` | **≥ 9.1** (tested on 10.x and 11.x) |
+| `GlpiOAuthClient` | `/api.php` | **11+ only** |
+| `AsyncGlpiOAuthClient` | `/api.php` | **11+ only** |
+
+The legacy REST API (`/apirest.php`) has been stable since GLPI 9.1 and works without changes across 9.x, 10.x and 11.x.
+The high-level OAuth2 API (`/api.php`) was introduced in GLPI 11.
 
 ---
 
@@ -44,6 +58,9 @@ from glpi_utils import GlpiAPI
 with GlpiAPI(url="https://glpi.example.com", app_token="YOUR_APP_TOKEN") as api:
     api.login(username="glpi", password="glpi")
 
+    print("GLPI:", api.version)          # GLPIVersion('10.0.19')
+    print("Is 10+:", api.version > 10)   # True
+
     # All tickets — automatic pagination
     tickets = api.ticket.get_all_pages()
     print(f"Total tickets: {len(tickets)}")
@@ -57,17 +74,6 @@ with GlpiAPI(url="https://glpi.example.com", app_token="YOUR_APP_TOKEN") as api:
     })
     print(f"Created ticket #{new['id']}")
 ```
-
----
-
-## Supported APIs
-
-| Client | Endpoint | Auth |
-|--------|----------|------|
-| `GlpiAPI` | `/apirest.php` | Session token |
-| `AsyncGlpiAPI` | `/apirest.php` | Session token |
-| `GlpiOAuthClient` | `/api.php` | OAuth2 Bearer |
-| `AsyncGlpiOAuthClient` | `/api.php` | OAuth2 Bearer |
 
 ---
 
