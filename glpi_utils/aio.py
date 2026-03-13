@@ -281,7 +281,8 @@ class AsyncGlpiAPI:
         try:
             data = await self._request("GET", "getGlpiConfig")
             raw = (
-                (data.get("cfg_glpi") or {}).get("glpi_version")
+                (data.get("cfg_glpi") or {}).get("version")
+                or (data.get("cfg_glpi") or {}).get("glpi_version")
                 or data.get("glpi_version")
                 or data.get("version")
             )

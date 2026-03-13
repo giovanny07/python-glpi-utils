@@ -396,7 +396,8 @@ class GlpiAPI:
                 data = self._request("GET", "getGlpiConfig")
                 # GLPI 10/11: version is in cfg_glpi.glpi_version
                 raw = (
-                    (data.get("cfg_glpi") or {}).get("glpi_version")
+                    (data.get("cfg_glpi") or {}).get("version")
+                    or (data.get("cfg_glpi") or {}).get("glpi_version")
                     or data.get("glpi_version")
                     or data.get("version")
                 )
