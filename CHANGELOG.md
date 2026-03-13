@@ -7,6 +7,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.3.4] – 2026-03-12
+
+### Changed
+
+- **GLPI compatibility clarified across all docs:** The legacy REST API (`/apirest.php`)
+  supports **GLPI ≥ 9.1** (tested on 9.x, 10.x and 11.x), not just GLPI 11 as previously
+  documented. Confirmed working on GLPI 10.0.19.
+- **OAuth2 scope made explicit:** All documentation pages now clearly state that
+  `GlpiOAuthClient` / `AsyncGlpiOAuthClient` require **GLPI 11+**. An admonition warning
+  was added to the OAuth2 guide.
+- Updated `README.md` — requirements table now shows `GLPI ≥ 9.1`, examples use
+  `GLPIVersion('10.0.19')`, compatibility note added.
+- Updated `setup.cfg` description to `GLPI REST API (9.1+, 10.x, 11.x)`.
+- Updated `mkdocs.yml` site description.
+- Updated `docs/index.md` — added GLPI compatibility table.
+- Updated `docs/guides/installation.md` — added per-client compatibility table,
+  version bumped to 1.3.4.
+- Updated `docs/guides/authentication.md` and `docs/guides/oauth2.md` — GLPI version
+  requirements made explicit throughout.
+
+---
+
 ## [1.3.3] – 2026-03-12
 
 ### Fixed

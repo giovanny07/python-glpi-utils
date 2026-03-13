@@ -56,7 +56,7 @@ pip install -e ".[async,dev]"
 
 ```python
 import glpi_utils
-print(glpi_utils.__version__)  # 1.3.3
+print(glpi_utils.__version__)  # 1.3.4
 ```
 
 ---
@@ -71,4 +71,4 @@ Before using the library your GLPI server needs:
 
 For the OAuth2 client (`/api.php`) — GLPI 11+ only:
 
-4. **OAuth2 application** registered in GLPI — *Setup → OAuth2 applications*# Installation
+4. **OAuth2 application** registered in GLPI — *Setup → OAuth2 applications*
