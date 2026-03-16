@@ -7,6 +7,18 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.3.5] – 2026-03-16
+
+### Fixed
+
+- **`GlpiOAuthClient` / `AsyncGlpiOAuthClient` — `__getattr__` recursion bug:**
+  Accessing `api.ticket` (o cualquier proxy) disparaba recursión en `__getattr__`
+  cuando `_proxies` no existía aún en `__dict__`, dejando el proxy sin sesión válida.
+  El header `Authorization: Bearer` nunca se enviaba → `ERROR_UNAUTHENTICATED`.
+  Fix: usar `object.__getattribute__` para acceder a `_proxies` de forma segura.
+
+---
+
 ## [1.3.4] – 2026-03-12
 
 ### Changed

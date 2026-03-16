@@ -197,11 +197,19 @@ class GlpiOAuthClient:
     # ------------------------------------------------------------------
 
     def __getattr__(self, name: str) -> ItemProxy:
+        # Use object.__getattribute__ to avoid recursive __getattr__ calls
+        # when _proxies itself hasn't been set yet.
+        try:
+            proxies = object.__getattribute__(self, "_proxies")
+        except AttributeError:
+            proxies = {}
+            object.__setattr__(self, "_proxies", proxies)
+
         lower = name.lower()
         if lower in _ITEMTYPE_MAP:
-            if lower not in self._proxies:
-                self._proxies[lower] = ItemProxy(self, _ITEMTYPE_MAP[lower])  # type: ignore[arg-type]
-            return self._proxies[lower]
+            if lower not in proxies:
+                proxies[lower] = ItemProxy(self, _ITEMTYPE_MAP[lower])  # type: ignore[arg-type]
+            return proxies[lower]
         raise AttributeError(
             f"{self.__class__.__name__!r} has no attribute {name!r}. "
             "Use api.item('YourItemtype') for non-standard item types."
@@ -209,9 +217,14 @@ class GlpiOAuthClient:
 
     def item(self, itemtype: str) -> ItemProxy:
         """Return an :class:`~glpi_utils._resource.ItemProxy` for any itemtype."""
-        if itemtype not in self._proxies:
-            self._proxies[itemtype] = ItemProxy(self, itemtype)  # type: ignore[arg-type]
-        return self._proxies[itemtype]
+        try:
+            proxies = object.__getattribute__(self, "_proxies")
+        except AttributeError:
+            proxies = {}
+            object.__setattr__(self, "_proxies", proxies)
+        if itemtype not in proxies:
+            proxies[itemtype] = ItemProxy(self, itemtype)  # type: ignore[arg-type]
+        return proxies[itemtype]
 
     # ------------------------------------------------------------------
     # URL helpers
@@ -573,20 +586,31 @@ class AsyncGlpiOAuthClient:
     # ------------------------------------------------------------------
 
     def __getattr__(self, name: str) -> AsyncItemProxy:
+        try:
+            proxies = object.__getattribute__(self, "_proxies")
+        except AttributeError:
+            proxies = {}
+            object.__setattr__(self, "_proxies", proxies)
+
         lower = name.lower()
         if lower in _ITEMTYPE_MAP:
-            if lower not in self._proxies:
-                self._proxies[lower] = AsyncItemProxy(self, _ITEMTYPE_MAP[lower])  # type: ignore[arg-type]
-            return self._proxies[lower]
+            if lower not in proxies:
+                proxies[lower] = AsyncItemProxy(self, _ITEMTYPE_MAP[lower])  # type: ignore[arg-type]
+            return proxies[lower]
         raise AttributeError(
             f"{self.__class__.__name__!r} has no attribute {name!r}. "
             "Use api.item('YourItemtype') for non-standard item types."
         )
 
     def item(self, itemtype: str) -> AsyncItemProxy:
-        if itemtype not in self._proxies:
-            self._proxies[itemtype] = AsyncItemProxy(self, itemtype)  # type: ignore[arg-type]
-        return self._proxies[itemtype]
+        try:
+            proxies = object.__getattribute__(self, "_proxies")
+        except AttributeError:
+            proxies = {}
+            object.__setattr__(self, "_proxies", proxies)
+        if itemtype not in proxies:
+            proxies[itemtype] = AsyncItemProxy(self, itemtype)  # type: ignore[arg-type]
+        return proxies[itemtype]
 
     # ------------------------------------------------------------------
     # HTTP helpers
