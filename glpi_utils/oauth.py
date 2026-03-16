@@ -242,14 +242,14 @@ class GlpiOAuthClient:
     def _api_url(self) -> str:
         return f"{self._url}/api.php"
 
-    def _auth_headers(self) -> dict:
+    def _auth_headers(self, with_content_type: bool = False) -> dict:
         token = self._token.access_token
         if not token:
             raise GlpiAuthError("Not authenticated. Call authenticate() first.")
-        return {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        }
+        headers = {"Authorization": f"Bearer {token}"}
+        if with_content_type:
+            headers["Content-Type"] = "application/json"
+        return headers
 
     # ------------------------------------------------------------------
     # Authentication
@@ -369,7 +369,7 @@ class GlpiOAuthClient:
         try:
             resp = self._http.request(
                 method, url,
-                headers=self._auth_headers(),
+                headers=self._auth_headers(with_content_type=json is not None),
                 params=params,
                 json=json,
                 verify=self._verify_ssl,
@@ -640,13 +640,13 @@ class AsyncGlpiOAuthClient:
             self._http = aiohttp.ClientSession(connector=connector)
         return self._http
 
-    def _auth_headers(self) -> dict:
+    def _auth_headers(self, with_content_type: bool = False) -> dict:
         if not self._token.access_token:
             raise GlpiAuthError("Not authenticated. Call await authenticate() first.")
-        return {
-            "Authorization": f"Bearer {self._token.access_token}",
-            "Content-Type": "application/json",
-        }
+        headers = {"Authorization": f"Bearer {self._token.access_token}"}
+        if with_content_type:
+            headers["Content-Type"] = "application/json"
+        return headers
 
     # ------------------------------------------------------------------
     # Authentication
@@ -739,7 +739,7 @@ class AsyncGlpiOAuthClient:
         try:
             async with http.request(
                 method, url,
-                headers=self._auth_headers(),
+                headers=self._auth_headers(with_content_type=json is not None),
                 params=params,
                 json=json,
                 timeout=timeout,
