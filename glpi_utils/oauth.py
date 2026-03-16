@@ -69,6 +69,70 @@ from requests import Session
 
 from ._resource import AsyncItemProxy, ItemProxy
 from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _parse_content_range
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GLPI 11 High-Level API route map (namespaced paths under /api.php)
+# Keys match the aliases in _ITEMTYPE_MAP; values are the actual API paths.
+# ──────────────────────────────────────────────────────────────────────────────
+_HLAPI_ROUTE_MAP: dict = {
+    # Assistance
+    "Ticket":              "Assistance/Ticket",
+    "Problem":             "Assistance/Problem",
+    "Change":              "Assistance/Change",
+    "RecurringTicket":     "Assistance/RecurringTicket",
+    "RecurringChange":     "Assistance/RecurringChange",
+    # Assets
+    "Computer":            "Assets/Computer",
+    "Monitor":             "Assets/Monitor",
+    "Printer":             "Assets/Printer",
+    "NetworkEquipment":    "Assets/NetworkEquipment",
+    "Software":            "Assets/Software",
+    "SoftwareLicense":     "Assets/SoftwareLicense",
+    "Phone":               "Assets/Phone",
+    "Peripheral":          "Assets/Peripheral",
+    "Certificate":         "Assets/Certificate",
+    "Appliance":           "Assets/Appliance",
+    "Enclosure":           "Assets/Enclosure",
+    "Rack":                "Assets/Rack",
+    "PDU":                 "Assets/PDU",
+    "Cable":               "Assets/Cable",
+    "Unmanaged":           "Assets/Unmanaged",
+    # Administration
+    "User":                "Administration/User",
+    "Group":               "Administration/Group",
+    "Entity":              "Administration/Entity",
+    "Profile":             "Administration/Profile",
+    "UserCategory":        "Administration/UserCategory",
+    "UserTitle":           "Administration/UserTitle",
+    # Management
+    "Contract":            "Management/Contract",
+    "Supplier":            "Management/Supplier",
+    "Contact":             "Management/Contact",
+    "Document":            "Management/Document",
+    "Budget":              "Management/Budget",
+    "Domain":              "Management/Domain",
+    "License":             "Management/License",
+    "Cluster":             "Management/Cluster",
+    # Dropdowns
+    "ITILCategory":        "Dropdowns/ITILCategory",
+    "Location":            "Dropdowns/Location",
+    "State":               "Dropdowns/State",
+    "Manufacturer":        "Dropdowns/Manufacturer",
+    "RequestType":         "Dropdowns/RequestType",
+    "SolutionType":        "Dropdowns/SolutionType",
+    "TaskCategory":        "Dropdowns/TaskCategory",
+    "Calendar":            "Dropdowns/Calendar",
+    # Knowledgebase
+    "KnowbaseItem":        "Knowledgebase/Article",
+    "KnowledgebaseCategory": "Knowledgebase/Category",
+    # Project
+    "Project":             "Project",
+    "ProjectTask":         "Project/Task",
+}
+
+def _hl_route(itemtype: str) -> str:
+    """Return the High-Level API path for the given GLPI itemtype."""
+    return _HLAPI_ROUTE_MAP.get(itemtype, itemtype)
 from .exceptions import GlpiAPIError, GlpiAuthError, GlpiConnectionError, GlpiNotFoundError, GlpiPermissionError
 from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
@@ -417,14 +481,14 @@ class GlpiOAuthClient:
     def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict:
         """Return a single item by ID."""
         params = _boolify_params(kwargs)
-        return self._request("GET", f"{itemtype}/{item_id}", params=params)
+        return self._request("GET", f"{_hl_route(itemtype)}/{item_id}", params=params)
 
     def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
         """Return a single page of items."""
         params = _boolify_params(kwargs)
         if "range" not in params:
             params["range"] = f"0-{DEFAULT_PAGE_SIZE - 1}"
-        return self._request("GET", itemtype, params=params)
+        return self._request("GET", _hl_route(itemtype), params=params)
 
     def get_all_pages(
         self,
@@ -450,7 +514,7 @@ class GlpiOAuthClient:
             end = start + page_size - 1
             params["range"] = f"{start}-{end}"
 
-            page_items, resp_headers = self._request_with_headers("GET", itemtype, params=params)
+            page_items, resp_headers = self._request_with_headers("GET", _hl_route(itemtype), params=params)
 
             if not page_items:
                 return
@@ -469,19 +533,19 @@ class GlpiOAuthClient:
     def search(self, itemtype: str, **kwargs: Any) -> dict:
         """Run the GLPI search engine."""
         params = _boolify_params(kwargs)
-        return self._request("GET", f"search/{itemtype}", params=params)
+        return self._request("GET", f"search/{_hl_route(itemtype)}", params=params)
 
     def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
         """Create one or several items."""
         payload: dict = {"input": input_data}
         payload.update(kwargs)
-        return self._request("POST", itemtype, json=payload)
+        return self._request("POST", _hl_route(itemtype), json=payload)
 
     def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
         """Update one or several items."""
         payload: dict = {"input": input_data}
         payload.update(kwargs)
-        return self._request("PUT", itemtype, json=payload)
+        return self._request("PUT", _hl_route(itemtype), json=payload)
 
     def delete_item(
         self,
@@ -496,14 +560,14 @@ class GlpiOAuthClient:
             "force_purge": int(force_purge),
             "history": int(history),
         }
-        return self._request("DELETE", itemtype, json=payload)
+        return self._request("DELETE", _hl_route(itemtype), json=payload)
 
     def get_sub_items(
         self, itemtype: str, item_id: int, sub_itemtype: str, **kwargs: Any
     ) -> list:
         """Return sub-items of a parent item."""
         params = _boolify_params(kwargs)
-        return self._request("GET", f"{itemtype}/{item_id}/{sub_itemtype}", params=params)
+        return self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", params=params)
 
     def add_sub_item(
         self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict, **kwargs: Any
@@ -511,7 +575,7 @@ class GlpiOAuthClient:
         """Add a sub-item to a parent resource."""
         payload: dict = {"input": input_data}
         payload.update(kwargs)
-        return self._request("POST", f"{itemtype}/{item_id}/{sub_itemtype}", json=payload)
+        return self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", json=payload)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -760,13 +824,13 @@ class AsyncGlpiOAuthClient:
     # ------------------------------------------------------------------
 
     async def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict:
-        return await self._request("GET", f"{itemtype}/{item_id}", params=_boolify_params(kwargs))
+        return await self._request("GET", f"{_hl_route(itemtype)}/{item_id}", params=_boolify_params(kwargs))
 
     async def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
         params = _boolify_params(kwargs)
         if "range" not in params:
             params["range"] = f"0-{DEFAULT_PAGE_SIZE - 1}"
-        return await self._request("GET", itemtype, params=params)
+        return await self._request("GET", _hl_route(itemtype), params=params)
 
     async def get_all_pages(self, itemtype: str, page_size: int = DEFAULT_PAGE_SIZE, **kwargs: Any) -> list:
         results: list = []
@@ -783,7 +847,7 @@ class AsyncGlpiOAuthClient:
         while True:
             end = start + page_size - 1
             params["range"] = f"{start}-{end}"
-            page_items, resp_headers = await self._request_with_headers("GET", itemtype, params=params)
+            page_items, resp_headers = await self._request_with_headers("GET", _hl_route(itemtype), params=params)
             if not page_items:
                 return
             fetched += len(page_items)
@@ -796,30 +860,30 @@ class AsyncGlpiOAuthClient:
             start += page_size
 
     async def search(self, itemtype: str, **kwargs: Any) -> dict:
-        return await self._request("GET", f"search/{itemtype}", params=_boolify_params(kwargs))
+        return await self._request("GET", f"search/{_hl_route(itemtype)}", params=_boolify_params(kwargs))
 
     async def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
         payload: dict = {"input": input_data}
         payload.update(kwargs)
-        return await self._request("POST", itemtype, json=payload)
+        return await self._request("POST", _hl_route(itemtype), json=payload)
 
     async def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
         payload: dict = {"input": input_data}
         payload.update(kwargs)
-        return await self._request("PUT", itemtype, json=payload)
+        return await self._request("PUT", _hl_route(itemtype), json=payload)
 
     async def delete_item(self, itemtype: str, input_data: Any, force_purge: bool = False, history: bool = True) -> list:
-        return await self._request("DELETE", itemtype, json={
+        return await self._request("DELETE", _hl_route(itemtype), json={
             "input": input_data, "force_purge": int(force_purge), "history": int(history),
         })
 
     async def get_sub_items(self, itemtype: str, item_id: int, sub_itemtype: str, **kwargs: Any) -> list:
-        return await self._request("GET", f"{itemtype}/{item_id}/{sub_itemtype}", params=_boolify_params(kwargs))
+        return await self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", params=_boolify_params(kwargs))
 
     async def add_sub_item(self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict, **kwargs: Any) -> dict:
         payload: dict = {"input": input_data}
         payload.update(kwargs)
-        return await self._request("POST", f"{itemtype}/{item_id}/{sub_itemtype}", json=payload)
+        return await self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", json=payload)
 
     @property
     def version(self) -> Optional[GLPIVersion]:
