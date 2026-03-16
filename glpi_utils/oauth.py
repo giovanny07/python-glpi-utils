@@ -537,12 +537,23 @@ class GlpiOAuthClient:
 
     def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
         """Create one or several items."""
-        payload: dict = {"input": input_data}
-        payload.update(kwargs)
-        return self._request("POST", _hl_route(itemtype), json=payload)
+        # HL API v2: POST body is the object directly, no {input:} wrapper
+        if isinstance(input_data, dict):
+            body = dict(input_data)
+            body.update(kwargs)
+        else:
+            body = input_data
+        return self._request("POST", _hl_route(itemtype), json=body)
 
     def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
         """Update one or several items."""
+        # HL API v2: PUT /{route}/{id} with fields in body (no wrapper)
+        if isinstance(input_data, dict) and "id" in input_data:
+            item_id = input_data["id"]
+            body = {k: v for k, v in input_data.items() if k != "id"}
+            body.update(kwargs)
+            return self._request("PUT", f"{_hl_route(itemtype)}/{item_id}", json=body)
+        # Fallback for list input (bulk) - not natively supported in HL API
         payload: dict = {"input": input_data}
         payload.update(kwargs)
         return self._request("PUT", _hl_route(itemtype), json=payload)
@@ -555,11 +566,11 @@ class GlpiOAuthClient:
         history: bool = True,
     ) -> list:
         """Delete one or several items."""
-        payload: dict = {
-            "input": input_data,
-            "force_purge": int(force_purge),
-            "history": int(history),
-        }
+        # HL API v2: DELETE /{route}/{id}
+        if isinstance(input_data, dict) and "id" in input_data:
+            item_id = input_data["id"]
+            return self._request("DELETE", f"{_hl_route(itemtype)}/{item_id}")
+        payload: dict = {"input": input_data}
         return self._request("DELETE", _hl_route(itemtype), json=payload)
 
     def get_sub_items(
@@ -863,19 +874,28 @@ class AsyncGlpiOAuthClient:
         return await self._request("GET", f"search/{_hl_route(itemtype)}", params=_boolify_params(kwargs))
 
     async def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
-        payload: dict = {"input": input_data}
-        payload.update(kwargs)
-        return await self._request("POST", _hl_route(itemtype), json=payload)
+        if isinstance(input_data, dict):
+            body = dict(input_data)
+            body.update(kwargs)
+        else:
+            body = input_data
+        return await self._request("POST", _hl_route(itemtype), json=body)
 
     async def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
+        if isinstance(input_data, dict) and "id" in input_data:
+            item_id = input_data["id"]
+            body = {k: v for k, v in input_data.items() if k != "id"}
+            body.update(kwargs)
+            return await self._request("PUT", f"{_hl_route(itemtype)}/{item_id}", json=body)
         payload: dict = {"input": input_data}
         payload.update(kwargs)
         return await self._request("PUT", _hl_route(itemtype), json=payload)
 
     async def delete_item(self, itemtype: str, input_data: Any, force_purge: bool = False, history: bool = True) -> list:
-        return await self._request("DELETE", _hl_route(itemtype), json={
-            "input": input_data, "force_purge": int(force_purge), "history": int(history),
-        })
+        if isinstance(input_data, dict) and "id" in input_data:
+            item_id = input_data["id"]
+            return await self._request("DELETE", f"{_hl_route(itemtype)}/{item_id}")
+        return await self._request("DELETE", _hl_route(itemtype), json={"input": input_data})
 
     async def get_sub_items(self, itemtype: str, item_id: int, sub_itemtype: str, **kwargs: Any) -> list:
         return await self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", params=_boolify_params(kwargs))
