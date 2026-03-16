@@ -7,6 +7,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.3.6] – 2026-03-16
+
+### Changed
+
+- **`GlpiOAuthClient` / `AsyncGlpiOAuthClient`** ahora aceptan `username` y `password` en el constructor. Estos se usan automáticamente en `authenticate()` y en re-autenticaciones (`_ensure_token`), evitando tener que pasarlos en cada llamada.
+- **`client_credentials` grant documentado como no soportado** para el scope `api` en GLPI 11 (solo funciona para `inventory`). El grant recomendado es `password`.
+
+### Fixed
+
+- Re-autenticación automática (`_ensure_token`) fallaba silenciosamente cuando no se pasaban username/password en `authenticate()` inicial.
+
+---
+
 ## [1.3.5] – 2026-03-16
 
 ### Fixed

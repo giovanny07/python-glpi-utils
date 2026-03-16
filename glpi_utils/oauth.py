@@ -160,6 +160,8 @@ class GlpiOAuthClient:
         url: Optional[str] = None,
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
         verify_ssl: bool = True,
         timeout: int = 30,
     ) -> None:
@@ -169,6 +171,8 @@ class GlpiOAuthClient:
 
         self._client_id = client_id or os.environ.get("GLPI_OAUTH_CLIENT_ID")
         self._client_secret = client_secret or os.environ.get("GLPI_OAUTH_CLIENT_SECRET")
+        self._username = username or os.environ.get("GLPI_OAUTH_USERNAME")
+        self._password = password or os.environ.get("GLPI_OAUTH_PASSWORD")
         self._verify_ssl = verify_ssl
         self._timeout = timeout
 
@@ -263,7 +267,7 @@ class GlpiOAuthClient:
         username : str or None
             If provided (along with *password*), uses the ``password`` grant.
             Otherwise uses ``client_credentials``.
-            Falls back to ``GLPI_OAUTH_USERNAME`` / ``GLPI_OAUTH_PASSWORD``.
+            Falls back to constructor username or ``GLPI_OAUTH_USERNAME``.
         password : str or None
         """
         if not self._client_id:
@@ -271,8 +275,8 @@ class GlpiOAuthClient:
                 "client_id is required. Pass it or set GLPI_OAUTH_CLIENT_ID."
             )
 
-        username = username or os.environ.get("GLPI_OAUTH_USERNAME")
-        password = password or os.environ.get("GLPI_OAUTH_PASSWORD")
+        username = username or self._username
+        password = password or self._password
 
         if username and password:
             payload = {
@@ -544,6 +548,8 @@ class AsyncGlpiOAuthClient:
         url: Optional[str] = None,
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
         verify_ssl: bool = True,
         timeout: int = 30,
     ) -> None:
@@ -561,6 +567,8 @@ class AsyncGlpiOAuthClient:
 
         self._client_id = client_id or os.environ.get("GLPI_OAUTH_CLIENT_ID")
         self._client_secret = client_secret or os.environ.get("GLPI_OAUTH_CLIENT_SECRET")
+        self._username = username or os.environ.get("GLPI_OAUTH_USERNAME")
+        self._password = password or os.environ.get("GLPI_OAUTH_PASSWORD")
         self._verify_ssl = verify_ssl
         self._timeout = timeout
 
@@ -655,8 +663,8 @@ class AsyncGlpiOAuthClient:
         if not self._client_id:
             raise GlpiAuthError("client_id is required. Set GLPI_OAUTH_CLIENT_ID.")
 
-        username = username or os.environ.get("GLPI_OAUTH_USERNAME")
-        password = password or os.environ.get("GLPI_OAUTH_PASSWORD")
+        username = username or self._username
+        password = password or self._password
 
         if username and password:
             payload = {
