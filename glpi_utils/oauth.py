@@ -81,6 +81,12 @@ _HLAPI_ROUTE_MAP: dict = {
     "Change":              "Assistance/Change",
     "RecurringTicket":     "Assistance/RecurringTicket",
     "RecurringChange":     "Assistance/RecurringChange",
+    # Timeline sub-items (used via add_sub_item / get_sub_items)
+    "ITILFollowup":        "Timeline/Followup",
+    "ITILSolution":        "Timeline/Solution",
+    "TicketTask":          "Timeline/Task",
+    "TicketValidation":    "Timeline/Validation",
+    "Document":            "Timeline/Document",
     # Assets
     "Computer":            "Assets/Computer",
     "Monitor":             "Assets/Monitor",
@@ -584,9 +590,10 @@ class GlpiOAuthClient:
         self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict, **kwargs: Any
     ) -> dict:
         """Add a sub-item to a parent resource."""
-        payload: dict = {"input": input_data}
-        payload.update(kwargs)
-        return self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", json=payload)
+        # HL API v2: body is the object directly, no {"input":...} wrapper
+        body = dict(input_data)
+        body.update(kwargs)
+        return self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", json=body)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -901,9 +908,9 @@ class AsyncGlpiOAuthClient:
         return await self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", params=_boolify_params(kwargs))
 
     async def add_sub_item(self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict, **kwargs: Any) -> dict:
-        payload: dict = {"input": input_data}
-        payload.update(kwargs)
-        return await self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", json=payload)
+        body = dict(input_data)
+        body.update(kwargs)
+        return await self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", json=body)
 
     @property
     def version(self) -> Optional[GLPIVersion]:

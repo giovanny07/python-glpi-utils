@@ -7,6 +7,32 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.4.3] – 2026-03-16
+
+### Fixed
+
+- **Timeline sub-item routes**: The GLPI 11 HL API v2 nests followups, tasks, solutions,
+  validations and documents under a `Timeline/` path, not as direct sub-items.
+  Correct routes: `Assistance/Ticket/{id}/Timeline/Followup`, `.../Timeline/Task`,
+  `.../Timeline/Solution`, `.../Timeline/Validation`, `.../Timeline/Document`.
+  Updated `_HLAPI_ROUTE_MAP` accordingly for `ITILFollowup`, `TicketTask`,
+  `ITILSolution`, `TicketValidation` and `Document`.
+- **`add_sub_item` no `{"input":...}` wrapper**: Sub-item creation in HL API v2
+  requires the object body sent directly, same as `create_item`. Removed the legacy
+  wrapper from both `GlpiOAuthClient` and `AsyncGlpiOAuthClient`.
+
+---
+
+## [1.4.2] – 2026-03-16
+
+### Changed
+
+- Version bump only — no code changes. Published to resolve a PyPI conflict
+  where the `v1.4.1` release workflow failed mid-publish leaving the index
+  in an inconsistent state.
+
+---
+
 ## [1.4.1] – 2026-03-16
 
 ### Added
