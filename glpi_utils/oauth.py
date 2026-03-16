@@ -552,11 +552,11 @@ class GlpiOAuthClient:
             item_id = input_data["id"]
             body = {k: v for k, v in input_data.items() if k != "id"}
             body.update(kwargs)
-            return self._request("PUT", f"{_hl_route(itemtype)}/{item_id}", json=body)
+            return self._request("PATCH", f"{_hl_route(itemtype)}/{item_id}", json=body)
         # Fallback for list input (bulk) - not natively supported in HL API
         payload: dict = {"input": input_data}
         payload.update(kwargs)
-        return self._request("PUT", _hl_route(itemtype), json=payload)
+        return self._request("PATCH", _hl_route(itemtype), json=payload)
 
     def delete_item(
         self,
@@ -886,10 +886,10 @@ class AsyncGlpiOAuthClient:
             item_id = input_data["id"]
             body = {k: v for k, v in input_data.items() if k != "id"}
             body.update(kwargs)
-            return await self._request("PUT", f"{_hl_route(itemtype)}/{item_id}", json=body)
+            return await self._request("PATCH", f"{_hl_route(itemtype)}/{item_id}", json=body)
         payload: dict = {"input": input_data}
         payload.update(kwargs)
-        return await self._request("PUT", _hl_route(itemtype), json=payload)
+        return await self._request("PATCH", _hl_route(itemtype), json=payload)
 
     async def delete_item(self, itemtype: str, input_data: Any, force_purge: bool = False, history: bool = True) -> list:
         if isinstance(input_data, dict) and "id" in input_data:
