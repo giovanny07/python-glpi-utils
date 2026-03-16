@@ -7,6 +7,94 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.4.1] – 2026-03-16
+
+### Added
+
+- **`_HLAPI_ROUTE_MAP`**: Complete route map for the GLPI 11 High-Level API (`/api.php`).
+  The HL API uses namespaced paths instead of flat itemtypes. 35 itemtypes mapped across
+  5 namespaces: `Assistance/`, `Assets/`, `Administration/`, `Management/`, `Dropdowns/`,
+  `Knowledgebase/` and `Project/`.
+- **`_hl_route(itemtype)`** helper: Resolves any GLPI itemtype to its correct HL API path.
+  Falls back to the itemtype name as-is for unmapped types (plugins, custom assets).
+
+### Changed
+
+- **`GlpiOAuthClient` / `AsyncGlpiOAuthClient`** now accept `username` and `password`
+  in the constructor. They are used automatically in `authenticate()` and token refresh,
+  removing the need to pass credentials on every call.
+- **`client_credentials` grant**: Documented as unsupported for the `api` scope in GLPI 11
+  (only works for `inventory`). The `password` grant is the recommended method for scripts.
+- **Update operations** now use `PATCH /{route}/{id}` instead of `PUT` — GLPI 11 HL API
+  only accepts `GET`, `PATCH`, `DELETE` on individual resources.
+- **Create operations** now send the object directly as the JSON body (no `{"input": ...}`
+  wrapper) — HL API v2 does not use the legacy input wrapper.
+- **Delete operations** now use `DELETE /{route}/{id}` with no request body.
+
+### Fixed
+
+- **`__getattr__` recursion bug** in both OAuth clients: accessing `api.ticket` triggered
+  recursive `__getattr__` calls when `_proxies` was not yet in `__dict__`, causing the proxy
+  to be created with a corrupted session reference. The `Authorization: Bearer` header was
+  never sent, resulting in `ERROR_UNAUTHENTICATED` on every request after `authenticate()`.
+  Fixed by using `object.__getattribute__` to access `_proxies` safely.
+- **`Content-Type: application/json` on GET requests**: GLPI 11 interprets this header as
+  requiring a JSON body, returning `"Cuerpo JSON inválido"` on GET requests that have no
+  body. Fixed by only including `Content-Type` when there is a JSON payload.
+- **Token endpoint**: Fixed `_token_url` construction when the base URL included
+  `/api.php/v2.2` — the token endpoint is always `/api.php/token` regardless of API version.
+
+---
+
+## [1.4.0] – 2026-03-16
+
+### Added
+
+- **`_HLAPI_ROUTE_MAP`** (initial version): First namespace-aware route map for the GLPI 11
+  High-Level API. Covered core itemtypes: `Assistance/Ticket`, `Assets/Computer`,
+  `Administration/User`, etc.
+- **`_hl_route(itemtype)`** helper introduced to resolve itemtypes to their HL API paths.
+
+### Changed
+
+- **CRUD operations adapted for HL API v2 semantics**:
+  - `create_item`: body sent directly without `{"input": ...}` wrapper.
+  - `update_item`: uses `PATCH /{route}/{id}` with ID extracted from input dict.
+  - `delete_item`: uses `DELETE /{route}/{id}` with no request body.
+
+---
+
+## [1.3.9] – 2026-03-16
+
+### Added
+
+- **`_HLAPI_ROUTE_MAP`** (preliminary): Initial route map covering `Assistance/Ticket`,
+  `Assets/Computer`, `Administration/User`, `Management/Contract` and a subset of other
+  common itemtypes, derived from the GLPI 11 Swagger endpoint list.
+
+---
+
+## [1.3.8] – 2026-03-16
+
+### Fixed
+
+- **`Content-Type: application/json` on GET requests**: `_auth_headers()` previously
+  included `Content-Type` on every request. GLPI 11 interprets this header as requiring
+  a valid JSON body, returning `"Cuerpo JSON inválido"` (400) on GET requests with no body.
+  Fixed with a `with_content_type` flag — only sent when a JSON payload is present.
+
+---
+
+## [1.3.7] – 2026-03-16
+
+### Fixed
+
+- **Token URL construction**: `_token_url` now always resolves to `/api.php/token`
+  regardless of what the base URL contains. Passing a URL with `/api.php/v2.2` no longer
+  causes double-path issues on the token and API endpoints.
+
+---
+
 ## [1.3.6] – 2026-03-16
 
 ### Changed
