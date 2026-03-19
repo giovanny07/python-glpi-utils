@@ -21,6 +21,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   requires the object body sent directly, same as `create_item`. Removed the legacy
   wrapper from both `GlpiOAuthClient` and `AsyncGlpiOAuthClient`.
 
+### Notes
+
+- **GLPI 11.0.5 known bug**: `DELETE /Assistance/Ticket/{id}` and
+  `POST .../Timeline/Followup` return `ERROR_RIGHT_MISSING` regardless of profile
+  permissions. Confirmed fixed in **GLPI 11.0.6**. Recommend upgrading.
+
 ---
 
 ## [1.4.2] – 2026-03-16
