@@ -482,5 +482,196 @@ async def test_async_oauth_context_manager():
     assert not api._token.is_valid()
 
 
+
+# ──────────────────────────────────────────────────────────────────────────────
+# _hl_route — GLPI 11 HL API route mapping
+# ──────────────────────────────────────────────────────────────────────────────
+
+from glpi_utils.oauth import _hl_route
+
+class TestHlRoute(unittest.TestCase):
+
+    def test_ticket_maps_to_assistance(self):
+        self.assertEqual(_hl_route("Ticket"), "Assistance/Ticket")
+
+    def test_computer_maps_to_assets(self):
+        self.assertEqual(_hl_route("Computer"), "Assets/Computer")
+
+    def test_user_maps_to_administration(self):
+        self.assertEqual(_hl_route("User"), "Administration/User")
+
+    def test_contract_maps_to_management(self):
+        self.assertEqual(_hl_route("Contract"), "Management/Contract")
+
+    def test_itilcategory_maps_to_dropdowns(self):
+        self.assertEqual(_hl_route("ITILCategory"), "Dropdowns/ITILCategory")
+
+    def test_knowbaseitem_maps_to_knowledgebase(self):
+        self.assertEqual(_hl_route("KnowbaseItem"), "Knowledgebase/Article")
+
+    def test_followup_maps_to_timeline(self):
+        self.assertEqual(_hl_route("ITILFollowup"), "Timeline/Followup")
+
+    def test_task_maps_to_timeline(self):
+        self.assertEqual(_hl_route("TicketTask"), "Timeline/Task")
+
+    def test_solution_maps_to_timeline(self):
+        self.assertEqual(_hl_route("ITILSolution"), "Timeline/Solution")
+
+    def test_unknown_type_returns_as_is(self):
+        self.assertEqual(_hl_route("MyCustomType"), "MyCustomType")
+
+    def test_problem_maps_to_assistance(self):
+        self.assertEqual(_hl_route("Problem"), "Assistance/Problem")
+
+    def test_change_maps_to_assistance(self):
+        self.assertEqual(_hl_route("Change"), "Assistance/Change")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GlpiOAuthClient — constructor username/password
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestGlpiOAuthClientCredentials(unittest.TestCase):
+
+    def test_username_password_stored_in_constructor(self):
+        api = GlpiOAuthClient(
+            url="https://glpi.example.com",
+            client_id="x", client_secret="y",
+            username="admin", password="secret",
+        )
+        self.assertEqual(api._username, "admin")
+        self.assertEqual(api._password, "secret")
+
+    def test_username_from_env(self):
+        with patch.dict(os.environ, {
+            "GLPI_URL": "https://glpi.example.com",
+            "GLPI_OAUTH_USERNAME": "env_user",
+            "GLPI_OAUTH_PASSWORD": "env_pass",
+        }):
+            api = GlpiOAuthClient()
+            self.assertEqual(api._username, "env_user")
+            self.assertEqual(api._password, "env_pass")
+
+    @patch("requests.Session.post")
+    def test_authenticate_uses_constructor_credentials(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"access_token": "tok", "expires_in": 3600}
+        mock_post.return_value = mock_resp
+
+        api = GlpiOAuthClient(
+            url="https://glpi.example.com",
+            client_id="cid", client_secret="sec",
+            username="glpi", password="glpi",
+        )
+        api.authenticate()
+
+        call_data = mock_post.call_args[1]["data"]
+        self.assertEqual(call_data["grant_type"], "password")
+        self.assertEqual(call_data["username"], "glpi")
+        self.assertEqual(call_data["password"], "glpi")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# GlpiOAuthClient — HL API v2 CRUD semantics
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestGlpiOAuthClientHLSemantics(unittest.TestCase):
+
+    def setUp(self):
+        self.api = _make_oauth_api()
+
+    @patch("requests.Session.request")
+    def test_get_uses_namespaced_route(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(200, {"id": 1})
+        self.api.get_item("Ticket", 1)
+        url = mock_req.call_args[0][1]
+        self.assertIn("Assistance/Ticket/1", url)
+
+    @patch("requests.Session.request")
+    def test_get_all_uses_namespaced_route(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(200, [{"id": 1}])
+        self.api.get_all_items("Ticket")
+        url = mock_req.call_args[0][1]
+        self.assertIn("Assistance/Ticket", url)
+
+    @patch("requests.Session.request")
+    def test_create_sends_body_directly_no_input_wrapper(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(201, {"id": 5})
+        self.api.create_item("Ticket", {"name": "T", "content": "C"})
+        sent_json = mock_req.call_args[1]["json"]
+        # Body must NOT be wrapped in {"input": ...}
+        self.assertNotIn("input", sent_json)
+        self.assertEqual(sent_json["name"], "T")
+
+    @patch("requests.Session.request")
+    def test_update_uses_patch_not_put(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(200, {"id": 1})
+        self.api.update_item("Ticket", {"id": 1, "status": 2})
+        method = mock_req.call_args[0][0]
+        self.assertEqual(method, "PATCH")
+
+    @patch("requests.Session.request")
+    def test_update_puts_id_in_url_not_body(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(200, {"id": 1})
+        self.api.update_item("Ticket", {"id": 42, "status": 2})
+        url = mock_req.call_args[0][1]
+        sent_json = mock_req.call_args[1]["json"]
+        self.assertIn("42", url)
+        self.assertNotIn("id", sent_json)
+
+    @patch("requests.Session.request")
+    def test_delete_uses_id_in_url(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(204, None)
+        self.api.delete_item("Ticket", {"id": 99})
+        url = mock_req.call_args[0][1]
+        self.assertIn("99", url)
+
+    @patch("requests.Session.request")
+    def test_delete_sends_no_body(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(204, None)
+        self.api.delete_item("Ticket", {"id": 99})
+        sent_json = mock_req.call_args[1].get("json")
+        self.assertIsNone(sent_json)
+
+    @patch("requests.Session.request")
+    def test_get_no_content_type_header(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(200, [{"id": 1}])
+        self.api.get_all_items("Ticket")
+        headers = mock_req.call_args[1]["headers"]
+        self.assertNotIn("Content-Type", headers)
+
+    @patch("requests.Session.request")
+    def test_post_has_content_type_header(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(201, {"id": 1})
+        self.api.create_item("Ticket", {"name": "T", "content": "C"})
+        headers = mock_req.call_args[1]["headers"]
+        self.assertIn("Content-Type", headers)
+        self.assertEqual(headers["Content-Type"], "application/json")
+
+    @patch("requests.Session.request")
+    def test_add_sub_item_uses_timeline_route(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(201, {"id": 10})
+        self.api.add_sub_item("Ticket", 5, "ITILFollowup", {"content": "Note"})
+        url = mock_req.call_args[0][1]
+        self.assertIn("Assistance/Ticket/5/Timeline/Followup", url)
+
+    @patch("requests.Session.request")
+    def test_add_sub_item_no_input_wrapper(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(201, {"id": 10})
+        self.api.add_sub_item("Ticket", 5, "ITILFollowup", {"content": "Note"})
+        sent_json = mock_req.call_args[1]["json"]
+        self.assertNotIn("input", sent_json)
+        self.assertEqual(sent_json["content"], "Note")
+
+    @patch("requests.Session.request")
+    def test_get_sub_items_uses_timeline_route(self, mock_req):
+        mock_req.return_value = _mock_oauth_response(200, [{"id": 1}])
+        self.api.get_sub_items("Ticket", 5, "ITILFollowup")
+        url = mock_req.call_args[0][1]
+        self.assertIn("Assistance/Ticket/5/Timeline/Followup", url)
+
+
 if __name__ == "__main__":
     unittest.main()
