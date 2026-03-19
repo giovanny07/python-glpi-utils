@@ -20,7 +20,7 @@ It provides:
 
 > **Compatibility:**
 > - Legacy REST API (`/apirest.php`): **GLPI 9.1 and above** (tested on 10.x and 11.x)
-> - High-level OAuth2 API (`/api.php`): **GLPI 11+ only**
+> - High-level OAuth2 API (`/api.php`): **GLPI 11.0.6+** recommended (11.0.5 has permission bugs)
 
 ---
 
@@ -214,41 +214,76 @@ async for page in api.ticket.iter_pages(page_size=100):
 
 ## OAuth2 (High-level API — GLPI 11+ only)
 
-For the GLPI 11+ high-level API (`/api.php`), use the OAuth2 clients:
+> **Requires GLPI 11.0.6+** for full support. GLPI 11.0.5 has a known bug where
+> `DELETE` and `Timeline` sub-items (`Followup`, `Task`, `Solution`) return
+> `ERROR_RIGHT_MISSING` regardless of profile permissions.
+
+For the GLPI 11 high-level API (`/api.php`), use the OAuth2 clients.
+
+**Setup in GLPI:** Setup → OAuth clients → Add → Grants: `Password` → Scopes: `api`
+
+> The `client_credentials` grant is **not supported** for the `api` scope in GLPI 11
+> (only works for `inventory`). Always use the `password` grant.
 
 ```python
 from glpi_utils.oauth import GlpiOAuthClient
 
-# Client credentials grant (service accounts, scripts)
+# Pass username/password in constructor — used automatically on authenticate()
+# and on any token refresh (no need to pass them again).
 with GlpiOAuthClient(
     url="https://glpi.example.com",
     client_id="my-app",
     client_secret="my-secret",
+    username="glpi",
+    password="glpi",
 ) as api:
     api.authenticate()
+
+    # Read
     tickets = api.ticket.get_all_pages()
 
-# Password grant (user-delegated)
-api = GlpiOAuthClient(url="https://glpi.example.com", client_id="my-app")
-api.authenticate(username="glpi", password="glpi")
-computers = api.computer.get_all_pages()
-api.close()
+    # Create / Update / Delete
+    new = api.ticket.create({
+        "name": "Test", "content": "...",
+        "type": 1, "status": 1, "urgency": 3, "impact": 3, "priority": 3,
+    })
+    api.ticket.update({"id": new["id"], "status": 2})
+    api.ticket.delete({"id": new["id"]})
 
-# Async
-from glpi_utils.oauth import AsyncGlpiOAuthClient
-
-async with AsyncGlpiOAuthClient(
-    url="https://glpi.example.com",
-    client_id="my-app",
-    client_secret="my-secret",
-) as api:
-    await api.authenticate()
-    tickets = await api.ticket.get_all_pages()
+    # Timeline sub-items
+    api.ticket.add_sub_item(new["id"], "ITILFollowup", {
+        "content": "Work in progress.", "is_private": 0,
+    })
 ```
 
-The OAuth2 clients support all the same CRUD, sub-item, search and pagination methods as `GlpiAPI`.
+```python
+# Async
+import asyncio
+from glpi_utils.oauth import AsyncGlpiOAuthClient
 
-Environment variables: `GLPI_OAUTH_CLIENT_ID`, `GLPI_OAUTH_CLIENT_SECRET`, `GLPI_OAUTH_USERNAME`, `GLPI_OAUTH_PASSWORD`.
+async def main():
+    async with AsyncGlpiOAuthClient(
+        url="https://glpi.example.com",
+        client_id="my-app",
+        client_secret="my-secret",
+        username="glpi",
+        password="glpi",
+    ) as api:
+        await api.authenticate()
+        tickets = await api.ticket.get_all_pages()
+        async for page in api.ticket.iter_pages(page_size=100):
+            for ticket in page:
+                print(ticket["name"])
+
+asyncio.run(main())
+```
+
+The OAuth2 clients support all the same CRUD, sub-item, search and pagination
+methods as `GlpiAPI`. Itemtypes are mapped to their namespaced HL API paths
+automatically (`Ticket` → `Assistance/Ticket`, `Computer` → `Assets/Computer`, etc.).
+
+Environment variables: `GLPI_OAUTH_CLIENT_ID`, `GLPI_OAUTH_CLIENT_SECRET`,
+`GLPI_OAUTH_USERNAME`, `GLPI_OAUTH_PASSWORD`.
 
 ---
 
