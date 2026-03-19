@@ -89,23 +89,27 @@ asyncio.run(main())
 
 ---
 
-## OAuth2 (GLPI 11+ only)
+## OAuth2 (GLPI 11.0.6+ recommended)
 
 ```bash
 export GLPI_URL=https://glpi.example.com
 export GLPI_OAUTH_CLIENT_ID=your_client_id
 export GLPI_OAUTH_CLIENT_SECRET=your_client_secret
+export GLPI_OAUTH_USERNAME=glpi
+export GLPI_OAUTH_PASSWORD=glpi
 ```
 
 ```python
 import asyncio, os
 from glpi_utils.oauth import GlpiOAuthClient, AsyncGlpiOAuthClient
 
-# Sync
+# Sync — pass username/password in constructor for automatic token refresh
 with GlpiOAuthClient(
     url=os.environ["GLPI_URL"],
     client_id=os.environ["GLPI_OAUTH_CLIENT_ID"],
     client_secret=os.environ["GLPI_OAUTH_CLIENT_SECRET"],
+    username=os.environ["GLPI_OAUTH_USERNAME"],
+    password=os.environ["GLPI_OAUTH_PASSWORD"],
 ) as api:
     api.authenticate()
     tickets = api.ticket.get_all_pages()
@@ -117,6 +121,8 @@ async def main():
         url=os.environ["GLPI_URL"],
         client_id=os.environ["GLPI_OAUTH_CLIENT_ID"],
         client_secret=os.environ["GLPI_OAUTH_CLIENT_SECRET"],
+        username=os.environ["GLPI_OAUTH_USERNAME"],
+        password=os.environ["GLPI_OAUTH_PASSWORD"],
     ) as api:
         await api.authenticate()
         tickets = await api.ticket.get_all_pages()

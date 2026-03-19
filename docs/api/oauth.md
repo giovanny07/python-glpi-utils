@@ -1,13 +1,8 @@
-# OAuth2 Clients
+OAuth2 Clients
+Clients for the GLPI 11 high-level API (/api.php).
 
-Clients for the GLPI 11 high-level API (`/api.php`).
-
-## GlpiOAuthClient
-
+GlpiOAuthClient
 ::: glpi_utils.oauth.GlpiOAuthClient
 
----
-
-## AsyncGlpiOAuthClient
-
+AsyncGlpiOAuthClient
 ::: glpi_utils.oauth.AsyncGlpiOAuthClient
