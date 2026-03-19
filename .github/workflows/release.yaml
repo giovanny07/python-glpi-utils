@@ -6,7 +6,7 @@ on:
       - "v*.*.*"
 
 permissions:
-  contents: write  # needed to create GitHub Releases
+  contents: write
 
 jobs:
   release:
@@ -45,32 +45,9 @@ jobs:
       - name: Extract release notes from CHANGELOG
         id: changelog
         run: |
-          # Get the version from the tag (strip leading 'v')
           VERSION="${GITHUB_REF_NAME#v}"
-
-          # Extract the block between ## [VERSION] and the next ## [
-          NOTES=$(python3 - <<'PYEOF'
-import re, sys
-
-version = "$VERSION"
-changelog = open("CHANGELOG.md").read()
-
-# Match the section for this version
-pattern = rf"## \[{re.escape(version)}\][^\n]*\n(.*?)(?=\n## \[|\Z)"
-match = re.search(pattern, changelog, re.DOTALL)
-
-if match:
-    notes = match.group(1).strip()
-    print(notes)
-else:
-    print(f"No changelog entry found for {version}")
-    sys.exit(1)
-PYEOF
-          )
-
-          # Write to file to preserve newlines
-          echo "$NOTES" > release_notes.md
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          python3 .github/scripts/extract_changelog.py "$VERSION" > release_notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
