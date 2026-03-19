@@ -7,6 +7,37 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.4.4] – 2026-03-16
+
+### Added
+
+- **30 new unit tests** covering GLPI 11 HL API v2 behaviors (`tests/test_oauth.py`):
+  - `TestHlRoute` (12 tests): verifies `_hl_route()` mapping for all namespaces
+    (`Assistance/`, `Assets/`, `Administration/`, `Management/`, `Dropdowns/`,
+    `Knowledgebase/`, `Timeline/`) and fallback for unknown types.
+  - `TestGlpiOAuthClientCredentials` (3 tests): `username`/`password` in constructor,
+    env var fallback, and that `authenticate()` uses them automatically.
+  - `TestGlpiOAuthClientHLSemantics` (13 tests): namespaced GET routes, `PATCH` for
+    updates, ID in URL not body, no `{"input":...}` wrapper on create/add_sub_item,
+    `DELETE` with no body, `Content-Type` only on requests with a JSON payload,
+    `Timeline/Followup` route on sub-item operations. Total test count: **74**.
+
+### Changed
+
+- **README**: OAuth2 section rewritten — password grant with constructor credentials,
+  note on `client_credentials` limitation, GLPI 11.0.6+ recommendation, full CRUD
+  + Timeline sub-item example, async example updated.
+- **`docs/guides/oauth2.md`**: Rewritten for HL API v2 — removed `client_credentials`
+  example for `api` scope, added GLPI 11.0.6 warning, documented `username`/`password`
+  in constructor, added HL API route map table, updated sub-item examples to use
+  `ITILFollowup` via `Timeline/Followup`.
+- **`docs/guides/quickstart.md`**: OAuth2 section updated — `username`/`password` env
+  vars added, constructor examples updated.
+- **`examples/oauth2/basic_oauth2.py`**: Rewritten with env vars, password grant in
+  constructor, followup example, no hardcoded credentials.
+
+---
+
 ## [1.4.3] – 2026-03-16
 
 ### Fixed
