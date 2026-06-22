@@ -41,7 +41,7 @@ from .exceptions import (
 from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
 
-__version__ = "1.4.4"
+__version__ = "1.4.5"
 
 __all__ = [
     # Clients

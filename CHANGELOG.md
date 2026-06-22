@@ -7,6 +7,25 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.4.5] – 2026-06-22
+
+### Fixed
+
+- **Search parameter encoding**: `search()` now flattens `criteria`, `metacriteria`
+  and `forcedisplay` into PHP-style bracket notation (`criteria[0][field]=126`)
+  before passing them to the HTTP client. Previously, Python lists/dicts were passed
+  directly, causing GLPI to silently return no results on criteria-based searches
+  (e.g. searching computers by IP address, serial number, etc.).
+  Affects both `GlpiAPI.search()` (sync) and `AsyncGlpiAPI.search()` (async).
+  Fixes [#1](https://github.com/giovanny07/python-glpi-utils/issues/1).
+
+### Tests
+
+- 10 new tests for search parameter flattening: unit tests for `_flatten_search_params()`
+  and integration tests verifying `search()` sends correctly encoded params.
+
+---
+
 ## [1.4.4] – 2026-03-16
 
 ### Added
