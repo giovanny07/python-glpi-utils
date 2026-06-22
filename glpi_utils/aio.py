@@ -20,7 +20,7 @@ from base64 import b64encode
 from typing import Any, AsyncIterator, Optional
 
 from ._resource import AsyncItemProxy
-from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _parse_content_range, _raise_for_glpi_error
+from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _flatten_search_params, _parse_content_range, _raise_for_glpi_error
 from .exceptions import GlpiAPIError, GlpiAuthError, GlpiConnectionError
 from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
@@ -425,7 +425,7 @@ class AsyncGlpiAPI:
             start += page_size
 
     async def search(self, itemtype: str, **kwargs: Any) -> dict:
-        params = _boolify_params(kwargs)
+        params = _boolify_params(_flatten_search_params(kwargs))
         return await self._request("GET", f"search/{itemtype}", params=params)
 
     async def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
