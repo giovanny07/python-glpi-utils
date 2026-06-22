@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, call, patch
 import requests
 
 from glpi_utils import GlpiAPI, GlpiAPIError, GlpiAuthError, GlpiNotFoundError
+from glpi_utils.api import _flatten_search_params
 from glpi_utils.exceptions import GlpiConnectionError, GlpiPermissionError
 from glpi_utils.version import GLPIVersion
 
@@ -380,6 +381,120 @@ class TestGlpiAPIItemCRUD(unittest.TestCase):
         result = self.api.search("Ticket")
         self.assertIsInstance(result, dict)
         self.assertEqual(result["totalcount"], 5)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Search parameter flattening
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TestFlattenSearchParams(unittest.TestCase):
+
+    def test_criteria_flattened(self):
+        params = {
+            "criteria": [
+                {"field": 1, "searchtype": "contains", "value": "test"},
+            ],
+        }
+        flat = _flatten_search_params(params)
+        self.assertEqual(flat["criteria[0][field]"], 1)
+        self.assertEqual(flat["criteria[0][searchtype]"], "contains")
+        self.assertEqual(flat["criteria[0][value]"], "test")
+        self.assertNotIn("criteria", flat)
+
+    def test_multiple_criteria(self):
+        params = {
+            "criteria": [
+                {"field": 1, "searchtype": "contains", "value": "a"},
+                {"field": 5, "searchtype": "equals", "value": "b"},
+            ],
+        }
+        flat = _flatten_search_params(params)
+        self.assertEqual(flat["criteria[0][field]"], 1)
+        self.assertEqual(flat["criteria[1][field]"], 5)
+        self.assertEqual(flat["criteria[1][value]"], "b")
+
+    def test_metacriteria_flattened(self):
+        params = {
+            "metacriteria": [
+                {"link": "AND", "itemtype": "User", "field": 1, "searchtype": "equals", "value": "admin"},
+            ],
+        }
+        flat = _flatten_search_params(params)
+        self.assertEqual(flat["metacriteria[0][itemtype]"], "User")
+        self.assertEqual(flat["metacriteria[0][field]"], 1)
+
+    def test_forcedisplay_flattened(self):
+        params = {"forcedisplay": [1, 5, 126]}
+        flat = _flatten_search_params(params)
+        self.assertEqual(flat["forcedisplay[0]"], 1)
+        self.assertEqual(flat["forcedisplay[1]"], 5)
+        self.assertEqual(flat["forcedisplay[2]"], 126)
+        self.assertNotIn("forcedisplay", flat)
+
+    def test_scalar_params_preserved(self):
+        params = {"range": "0-49", "sort": 1, "order": "ASC"}
+        flat = _flatten_search_params(params)
+        self.assertEqual(flat["range"], "0-49")
+        self.assertEqual(flat["sort"], 1)
+        self.assertEqual(flat["order"], "ASC")
+
+    def test_combined_criteria_and_forcedisplay(self):
+        params = {
+            "criteria": [{"field": 126, "searchtype": "equals", "value": "10.0.0.1"}],
+            "forcedisplay": [1, 5, 126],
+            "range": "0-1999",
+        }
+        flat = _flatten_search_params(params)
+        self.assertEqual(flat["criteria[0][field]"], 126)
+        self.assertEqual(flat["forcedisplay[0]"], 1)
+        self.assertEqual(flat["range"], "0-1999")
+
+    def test_empty_criteria_ignored(self):
+        params = {"criteria": [], "range": "0-49"}
+        flat = _flatten_search_params(params)
+        self.assertNotIn("criteria[0][field]", flat)
+        self.assertEqual(flat["range"], "0-49")
+
+    def test_no_nested_params_is_passthrough(self):
+        params = {"range": "0-49", "rawdata": True}
+        flat = _flatten_search_params(params)
+        self.assertEqual(flat, {"range": "0-49", "rawdata": True})
+
+
+class TestSearchFlattensParams(unittest.TestCase):
+
+    def setUp(self):
+        self.api = make_api()
+
+    @patch("requests.Session.request")
+    def test_search_flattens_criteria(self, mock_req):
+        mock_req.return_value = mock_response(200, {"totalcount": 1, "data": []})
+        self.api.search(
+            "Computer",
+            criteria=[{"field": 126, "searchtype": "equals", "value": "10.0.0.1"}],
+            forcedisplay=[1, 5, 126],
+            range="0-1999",
+        )
+        params = mock_req.call_args[1]["params"]
+        self.assertEqual(params["criteria[0][field]"], 126)
+        self.assertEqual(params["criteria[0][searchtype]"], "equals")
+        self.assertEqual(params["criteria[0][value]"], "10.0.0.1")
+        self.assertEqual(params["forcedisplay[0]"], 1)
+        self.assertEqual(params["forcedisplay[2]"], 126)
+        self.assertEqual(params["range"], "0-1999")
+        self.assertNotIn("criteria", params)
+        self.assertNotIn("forcedisplay", params)
+
+    @patch("requests.Session.request")
+    def test_search_proxy_flattens_criteria(self, mock_req):
+        mock_req.return_value = mock_response(200, {"totalcount": 0, "data": []})
+        self.api.computer.search(
+            criteria=[{"field": 1, "searchtype": "contains", "value": "SRV"}],
+        )
+        params = mock_req.call_args[1]["params"]
+        self.assertEqual(params["criteria[0][field]"], 1)
+        self.assertNotIn("criteria", params)
 
 
 # ──────────────────────────────────────────────────────────────────────────────

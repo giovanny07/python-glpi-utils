@@ -109,6 +109,32 @@ def _raise_for_glpi_error(response: Response) -> None:
     raise GlpiAPIError(message, status_code=status, error_code=error_code)
 
 
+def _flatten_search_params(params: dict) -> dict:
+    """Flatten nested search parameters into PHP-style bracket notation.
+
+    GLPI expects ``criteria[0][field]=126&criteria[0][searchtype]=equals``
+    rather than Python list/dict structures that HTTP clients cannot
+    serialize correctly.
+    """
+    flat: dict = {}
+
+    for key in ("criteria", "metacriteria"):
+        items = params.pop(key, None)
+        if not items:
+            continue
+        for i, crit in enumerate(items):
+            for sub_key, value in crit.items():
+                flat[f"{key}[{i}][{sub_key}]"] = value
+
+    forcedisplay = params.pop("forcedisplay", None)
+    if forcedisplay:
+        for i, field in enumerate(forcedisplay):
+            flat[f"forcedisplay[{i}]"] = field
+
+    flat.update(params)
+    return flat
+
+
 def _boolify_params(params: dict) -> dict:
     """Convert Python ``bool`` values to GLPI-expected ``0``/``1`` integers."""
     return {k: int(v) if isinstance(v, bool) else v for k, v in params.items()}
@@ -651,7 +677,7 @@ class GlpiAPI:
             ``criteria``, ``metacriteria``, ``sort``, ``order``,
             ``range``, ``forcedisplay``, ``rawdata``, ``withindexes``.
         """
-        params = _boolify_params(kwargs)
+        params = _boolify_params(_flatten_search_params(kwargs))
         return self._request("GET", f"search/{itemtype}", params=params)
 
     def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
