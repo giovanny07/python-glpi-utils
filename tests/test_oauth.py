@@ -279,9 +279,9 @@ class TestGlpiOAuthClientCRUD(unittest.TestCase):
 
     @patch("requests.Session.request")
     def test_search(self, mock_req):
-        mock_req.return_value = _mock_oauth_response(200, {"totalcount": 3, "data": []})
-        result = self.api.search("Ticket")
-        self.assertEqual(result["totalcount"], 3)
+        mock_req.return_value = _mock_oauth_response(200, [{"id": 1}, {"id": 2}])
+        result = self.api.search("Ticket", filter="status.id==1")
+        self.assertEqual(len(result), 2)
 
     @patch("requests.Session.request")
     def test_get_sub_items(self, mock_req):

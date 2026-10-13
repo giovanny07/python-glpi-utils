@@ -1,5 +1,5 @@
 site_name: python-glpi-utils
-site_description: Python library for the GLPI 11 REST API
+site_description: Python library for the GLPI REST API (GLPI 9.1 to 12)
 site_url: https://giovanny07.github.io/python-glpi-utils/
 repo_url: https://github.com/giovanny07/python-glpi-utils
 repo_name: giovanny07/python-glpi-utils

@@ -2,11 +2,11 @@
 glpi_utils.oauth
 ~~~~~~~~~~~~~~~~
 
-OAuth2 client for the GLPI 11 **High-level API** (``/api.php``).
+OAuth2 client for the GLPI **High-level API** (``/api.php``), GLPI 11 and 12.
 
-GLPI 11 introduced a second, modern REST API alongside the legacy one.
-It uses OAuth2 *Client Credentials* flow for machine-to-machine access
-and *Authorization Code* flow for user-delegated access.
+GLPI 11 introduced a second, modern REST API alongside the legacy one
+(HL API 2.x). GLPI 12 adds HL API 3.0 and keeps 2.3. Unversioned requests
+get the server's newest version; pass ``api_version`` to pin one.
 
 This module provides:
 
@@ -16,10 +16,10 @@ This module provides:
 Both expose the same CRUD operations as the legacy API clients but
 authenticate via Bearer tokens instead of session tokens.
 
-OAuth2 endpoints (GLPI 11)
---------------------------
+OAuth2 endpoints
+----------------
 * Token:  ``POST /api.php/token``
-* API:    ``/api.php/{itemtype}``
+* API:    ``/api.php/{namespace}/{itemtype}`` or ``/api.php/v{X.Y}/...`` when pinned
 
 Supported grant types
 ---------------------
@@ -54,13 +54,14 @@ Usage (async)::
 Environment variables
 ---------------------
 ``GLPI_URL``, ``GLPI_OAUTH_CLIENT_ID``, ``GLPI_OAUTH_CLIENT_SECRET``,
-``GLPI_OAUTH_USERNAME``, ``GLPI_OAUTH_PASSWORD``
+``GLPI_OAUTH_USERNAME``, ``GLPI_OAUTH_PASSWORD``, ``GLPI_API_VERSION``
 """
 
 from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from typing import Any, AsyncIterator, Iterator, Optional
 
@@ -71,7 +72,8 @@ from ._resource import AsyncItemProxy, ItemProxy
 from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _parse_content_range
 
 # ──────────────────────────────────────────────────────────────────────────────
-# GLPI 11 High-Level API route map (namespaced paths under /api.php)
+# High-Level API route map (namespaced paths under /api.php), valid for
+# HL API 2.3 (GLPI 11/12) and 3.0 (GLPI 12) unless noted.
 # Keys match the aliases in _ITEMTYPE_MAP; values are the actual API paths.
 # ──────────────────────────────────────────────────────────────────────────────
 _HLAPI_ROUTE_MAP: dict = {
@@ -81,19 +83,21 @@ _HLAPI_ROUTE_MAP: dict = {
     "Change":              "Assistance/Change",
     "RecurringTicket":     "Assistance/RecurringTicket",
     "RecurringChange":     "Assistance/RecurringChange",
-    # Timeline sub-items (used via add_sub_item / get_sub_items)
+    # Timeline sub-items also resolve here so get_item("ITILFollowup", ...)
+    # keeps working; sub-item calls use _HLAPI_SUBITEM_MAP below.
     "ITILFollowup":        "Timeline/Followup",
     "ITILSolution":        "Timeline/Solution",
     "TicketTask":          "Timeline/Task",
     "TicketValidation":    "Timeline/Validation",
-    "Document":            "Timeline/Document",
     # Assets
     "Computer":            "Assets/Computer",
     "Monitor":             "Assets/Monitor",
     "Printer":             "Assets/Printer",
     "NetworkEquipment":    "Assets/NetworkEquipment",
     "Software":            "Assets/Software",
-    "SoftwareLicense":     "Assets/SoftwareLicense",
+    # /Assets/SoftwareLicense was deprecated in v2.4 and removed in v3.0;
+    # Management/License serves the same itemtype on every version.
+    "SoftwareLicense":     "Management/License",
     "Phone":               "Assets/Phone",
     "Peripheral":          "Assets/Peripheral",
     "Certificate":         "Assets/Certificate",
@@ -130,15 +134,75 @@ _HLAPI_ROUTE_MAP: dict = {
     "Calendar":            "Dropdowns/Calendar",
     # Knowledgebase
     "KnowbaseItem":        "Knowledgebase/Article",
+    # Removed in HL API v3.0 (GLPI 12 turned KB categories into articles)
     "KnowledgebaseCategory": "Knowledgebase/Category",
     # Project
     "Project":             "Project",
     "ProjectTask":         "Project/Task",
 }
 
+# Sub-items of an ITIL object (Ticket, Change, Problem) live under
+# ``/Assistance/{itemtype}/{id}/Timeline/...``.
+_HLAPI_SUBITEM_MAP: dict = {
+    "ITILFollowup":        "Timeline/Followup",
+    "ITILSolution":        "Timeline/Solution",
+    "TicketTask":          "Timeline/Task",
+    "ChangeTask":          "Timeline/Task",
+    "ProblemTask":         "Timeline/Task",
+    "TicketValidation":    "Timeline/Validation",
+    "ChangeValidation":    "Timeline/Validation",
+    "Document":            "Timeline/Document",
+}
+
+
 def _hl_route(itemtype: str) -> str:
     """Return the High-Level API path for the given GLPI itemtype."""
     return _HLAPI_ROUTE_MAP.get(itemtype, itemtype)
+
+
+def _hl_subitem_route(itemtype: str) -> str:
+    """Return the path segment of a sub-item under its parent resource."""
+    return _HLAPI_SUBITEM_MAP.get(itemtype) or _hl_route(itemtype)
+
+
+_API_VERSION_RE = re.compile(r"^v?(\d+(?:\.\d+)?)$", re.IGNORECASE)
+
+
+def _normalize_api_version(version: Any) -> Optional[str]:
+    """Turn ``"3"``, ``3.0``, ``"v2.3"`` into the URL prefix ``"v3"``/``"v3.0"``/``"v2.3"``.
+
+    ``None`` or ``""`` means "no prefix": the server then answers with its
+    newest HL API version (2.3 on GLPI 11, 3.0 on GLPI 12).
+    """
+    if version is None or version == "":
+        return None
+    match = _API_VERSION_RE.match(str(version).strip())
+    if not match:
+        raise ValueError(
+            f"Invalid High-Level API version {version!r}. Use e.g. '2', '2.3' or '3.0'."
+        )
+    number = match.group(1)
+    if number.split(".")[0] == "1":
+        raise ValueError(
+            "API version 1 is the legacy REST API; use GlpiAPI / AsyncGlpiAPI for it."
+        )
+    return f"v{number}"
+
+
+def _page_params(params: dict, page_size: int) -> dict:
+    """Return a copy of *params* with HL API ``start``/``limit`` pagination.
+
+    The HL API ignores the legacy ``range`` parameter and falls back to its
+    default limit (100), so a ``range="a-b"`` kwarg is translated here.
+    """
+    out = dict(params)
+    raw_range = out.pop("range", None)
+    if raw_range is not None and "start" not in out and "limit" not in out:
+        first, last = (int(x) for x in str(raw_range).split("-", 1))
+        out["start"], out["limit"] = first, last - first + 1
+    out.setdefault("start", 0)
+    out.setdefault("limit", page_size)
+    return out
 from .exceptions import GlpiAPIError, GlpiAuthError, GlpiConnectionError, GlpiNotFoundError, GlpiPermissionError
 from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
@@ -208,7 +272,7 @@ def _raise_for_oauth_error(status: int, body: Any, text: str = "") -> None:
 
 
 class GlpiOAuthClient:
-    """Synchronous OAuth2 client for the GLPI 11 High-level API (``/api.php``).
+    """Synchronous OAuth2 client for the GLPI 11/12 High-level API (``/api.php``).
 
     Parameters
     ----------
@@ -223,6 +287,13 @@ class GlpiOAuthClient:
         Verify TLS certificates (default: ``True``).
     timeout : int
         HTTP timeout in seconds (default: ``30``).
+    api_version : str or None
+        High-Level API version to pin, e.g. ``"2.3"`` or ``"3.0"``
+        (``/api.php/v2.3``, ``/api.php/v3.0``). ``None`` sends unversioned
+        requests, which the server answers with its newest version: 2.3 on
+        GLPI 11, **3.0 on GLPI 12**. Pin it in production so a GLPI upgrade
+        does not change response schemas under you.
+        Falls back to ``GLPI_API_VERSION``.
     """
 
     def __init__(
@@ -234,6 +305,7 @@ class GlpiOAuthClient:
         password: Optional[str] = None,
         verify_ssl: bool = True,
         timeout: int = 30,
+        api_version: Optional[str] = None,
     ) -> None:
         self._url = (url or os.environ.get("GLPI_URL", "")).rstrip("/")
         if not self._url:
@@ -243,6 +315,9 @@ class GlpiOAuthClient:
         self._client_secret = client_secret or os.environ.get("GLPI_OAUTH_CLIENT_SECRET")
         self._username = username or os.environ.get("GLPI_OAUTH_USERNAME")
         self._password = password or os.environ.get("GLPI_OAUTH_PASSWORD")
+        self._api_version = _normalize_api_version(
+            api_version or os.environ.get("GLPI_API_VERSION")
+        )
         self._verify_ssl = verify_ssl
         self._timeout = timeout
 
@@ -310,7 +385,14 @@ class GlpiOAuthClient:
 
     @property
     def _api_url(self) -> str:
+        if self._api_version:
+            return f"{self._url}/api.php/{self._api_version}"
         return f"{self._url}/api.php"
+
+    @property
+    def api_version(self) -> Optional[str]:
+        """Pinned HL API version prefix (e.g. ``"v3.0"``), or ``None``."""
+        return self._api_version
 
     def _auth_headers(self, with_content_type: bool = False) -> dict:
         token = self._token.access_token
@@ -473,12 +555,35 @@ class GlpiOAuthClient:
         return self._version
 
     def get_version(self) -> GLPIVersion:
-        """Fetch and cache the GLPI server version."""
-        data = self._request("GET", "")
-        # High-level API root returns server info
-        raw = data.get("glpi_version") if isinstance(data, dict) else None
+        """Fetch and cache the GLPI server version.
+
+        Reads ``GET /Setup/Config/core/version`` (needs read access to the
+        general setup); the API root does not expose the GLPI version.
+        """
+        data = self._request("GET", "Setup/Config/core/version")
+        raw = data.get("value") if isinstance(data, dict) else None
         self._version = GLPIVersion(raw or "0.0.0")
         return self._version
+
+    def get_api_versions(self) -> list:
+        """Return the API versions the server offers (``GET /api.php/``).
+
+        Each entry has ``api_version`` (major), ``version`` and ``endpoint``.
+        GLPI 11 lists 1.0.0 and 2.0.0-2.3.0; GLPI 12 lists 1.0.0, 2.3.0 and 3.0.0.
+        """
+        self._ensure_token()
+        try:
+            resp = self._http.get(
+                f"{self._url}/api.php/",
+                headers=self._auth_headers(),
+                verify=self._verify_ssl,
+                timeout=self._timeout,
+            )
+        except requests.exceptions.RequestException as exc:
+            raise GlpiConnectionError(f"Cannot reach GLPI at {self._url}: {exc}") from exc
+        body = resp.json()
+        _raise_for_oauth_error(resp.status_code, body, resp.text)
+        return list(body.get("api_versions", []))
 
     # ------------------------------------------------------------------
     # Item CRUD
@@ -490,10 +595,8 @@ class GlpiOAuthClient:
         return self._request("GET", f"{_hl_route(itemtype)}/{item_id}", params=params)
 
     def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
-        """Return a single page of items."""
-        params = _boolify_params(kwargs)
-        if "range" not in params:
-            params["range"] = f"0-{DEFAULT_PAGE_SIZE - 1}"
+        """Return a single page of items (``start``/``limit``; ``range="a-b"`` is translated)."""
+        params = _page_params(_boolify_params(kwargs), DEFAULT_PAGE_SIZE)
         return self._request("GET", _hl_route(itemtype), params=params)
 
     def get_all_pages(
@@ -512,14 +615,13 @@ class GlpiOAuthClient:
         **kwargs: Any,
     ) -> Iterator[list]:
         """Yield one page of items at a time."""
-        params = _boolify_params(kwargs)
+        base = _boolify_params(kwargs)
+        base.pop("range", None)
         start = 0
         fetched = 0
 
         while True:
-            end = start + page_size - 1
-            params["range"] = f"{start}-{end}"
-
+            params = {**base, "start": start, "limit": page_size}
             page_items, resp_headers = self._request_with_headers("GET", _hl_route(itemtype), params=params)
 
             if not page_items:
@@ -536,10 +638,15 @@ class GlpiOAuthClient:
 
             start += page_size
 
-    def search(self, itemtype: str, **kwargs: Any) -> dict:
-        """Run the GLPI search engine."""
+    def search(self, itemtype: str, filter: Optional[str] = None, **kwargs: Any) -> list:
+        """Search a collection with an RSQL *filter*, e.g. ``"name=like=*srv*;status.id==1"``.
+
+        Extra kwargs (``start``, ``limit``, ``sort``) are passed as query parameters.
+        """
         params = _boolify_params(kwargs)
-        return self._request("GET", f"search/{_hl_route(itemtype)}", params=params)
+        if filter:
+            params["filter"] = filter
+        return self._request("GET", _hl_route(itemtype), params=params)
 
     def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
         """Create one or several items."""
@@ -584,7 +691,7 @@ class GlpiOAuthClient:
     ) -> list:
         """Return sub-items of a parent item."""
         params = _boolify_params(kwargs)
-        return self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", params=params)
+        return self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_subitem_route(sub_itemtype)}", params=params)
 
     def add_sub_item(
         self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict, **kwargs: Any
@@ -593,7 +700,7 @@ class GlpiOAuthClient:
         # HL API v2: body is the object directly, no {"input":...} wrapper
         body = dict(input_data)
         body.update(kwargs)
-        return self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", json=body)
+        return self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_subitem_route(sub_itemtype)}", json=body)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -602,7 +709,7 @@ class GlpiOAuthClient:
 
 
 class AsyncGlpiOAuthClient:
-    """Asynchronous OAuth2 client for the GLPI 11 High-level API (``/api.php``).
+    """Asynchronous OAuth2 client for the GLPI 11/12 High-level API (``/api.php``).
 
     Parameters
     ----------
@@ -611,6 +718,8 @@ class AsyncGlpiOAuthClient:
     client_secret : str or None
     verify_ssl : bool
     timeout : int
+    api_version : str or None
+        See :class:`GlpiOAuthClient`.
 
     Examples
     --------
@@ -634,6 +743,7 @@ class AsyncGlpiOAuthClient:
         password: Optional[str] = None,
         verify_ssl: bool = True,
         timeout: int = 30,
+        api_version: Optional[str] = None,
     ) -> None:
         try:
             import aiohttp  # noqa: F401
@@ -651,6 +761,9 @@ class AsyncGlpiOAuthClient:
         self._client_secret = client_secret or os.environ.get("GLPI_OAUTH_CLIENT_SECRET")
         self._username = username or os.environ.get("GLPI_OAUTH_USERNAME")
         self._password = password or os.environ.get("GLPI_OAUTH_PASSWORD")
+        self._api_version = _normalize_api_version(
+            api_version or os.environ.get("GLPI_API_VERSION")
+        )
         self._verify_ssl = verify_ssl
         self._timeout = timeout
 
@@ -712,7 +825,14 @@ class AsyncGlpiOAuthClient:
 
     @property
     def _api_url(self) -> str:
+        if self._api_version:
+            return f"{self._url}/api.php/{self._api_version}"
         return f"{self._url}/api.php"
+
+    @property
+    def api_version(self) -> Optional[str]:
+        """Pinned HL API version prefix (e.g. ``"v3.0"``), or ``None``."""
+        return self._api_version
 
     def _get_http(self) -> Any:
         import aiohttp
@@ -845,9 +965,7 @@ class AsyncGlpiOAuthClient:
         return await self._request("GET", f"{_hl_route(itemtype)}/{item_id}", params=_boolify_params(kwargs))
 
     async def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
-        params = _boolify_params(kwargs)
-        if "range" not in params:
-            params["range"] = f"0-{DEFAULT_PAGE_SIZE - 1}"
+        params = _page_params(_boolify_params(kwargs), DEFAULT_PAGE_SIZE)
         return await self._request("GET", _hl_route(itemtype), params=params)
 
     async def get_all_pages(self, itemtype: str, page_size: int = DEFAULT_PAGE_SIZE, **kwargs: Any) -> list:
@@ -859,12 +977,12 @@ class AsyncGlpiOAuthClient:
     async def iter_pages(
         self, itemtype: str, page_size: int = DEFAULT_PAGE_SIZE, **kwargs: Any
     ) -> AsyncIterator[list]:
-        params = _boolify_params(kwargs)
+        base = _boolify_params(kwargs)
+        base.pop("range", None)
         start = 0
         fetched = 0
         while True:
-            end = start + page_size - 1
-            params["range"] = f"{start}-{end}"
+            params = {**base, "start": start, "limit": page_size}
             page_items, resp_headers = await self._request_with_headers("GET", _hl_route(itemtype), params=params)
             if not page_items:
                 return
@@ -877,8 +995,11 @@ class AsyncGlpiOAuthClient:
                 return
             start += page_size
 
-    async def search(self, itemtype: str, **kwargs: Any) -> dict:
-        return await self._request("GET", f"search/{_hl_route(itemtype)}", params=_boolify_params(kwargs))
+    async def search(self, itemtype: str, filter: Optional[str] = None, **kwargs: Any) -> list:
+        params = _boolify_params(kwargs)
+        if filter:
+            params["filter"] = filter
+        return await self._request("GET", _hl_route(itemtype), params=params)
 
     async def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
         if isinstance(input_data, dict):
@@ -905,13 +1026,38 @@ class AsyncGlpiOAuthClient:
         return await self._request("DELETE", _hl_route(itemtype), json={"input": input_data})
 
     async def get_sub_items(self, itemtype: str, item_id: int, sub_itemtype: str, **kwargs: Any) -> list:
-        return await self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", params=_boolify_params(kwargs))
+        return await self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_subitem_route(sub_itemtype)}", params=_boolify_params(kwargs))
 
     async def add_sub_item(self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict, **kwargs: Any) -> dict:
         body = dict(input_data)
         body.update(kwargs)
-        return await self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_route(sub_itemtype)}", json=body)
+        return await self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_subitem_route(sub_itemtype)}", json=body)
 
     @property
     def version(self) -> Optional[GLPIVersion]:
         return self._version
+
+    async def get_version(self) -> GLPIVersion:
+        """Fetch and cache the GLPI server version (``GET /Setup/Config/core/version``)."""
+        data = await self._request("GET", "Setup/Config/core/version")
+        raw = data.get("value") if isinstance(data, dict) else None
+        self._version = GLPIVersion(raw or "0.0.0")
+        return self._version
+
+    async def get_api_versions(self) -> list:
+        """Return the API versions the server offers (``GET /api.php/``)."""
+        import aiohttp
+
+        await self._ensure_token()
+        http = self._get_http()
+        try:
+            async with http.get(
+                f"{self._url}/api.php/",
+                headers=self._auth_headers(),
+                timeout=aiohttp.ClientTimeout(total=self._timeout),
+            ) as resp:
+                body = await resp.json(content_type=None)
+                _raise_for_oauth_error(resp.status, body, "")
+                return list(body.get("api_versions", []))
+        except aiohttp.ClientConnectorError as exc:
+            raise GlpiConnectionError(f"Cannot reach GLPI at {self._url}: {exc}") from exc
