@@ -32,8 +32,8 @@ Run for a specific Python version (requires `tox` or `pyenv`):
 pytest --python=3.11
 ```
 
-All 262 tests must pass before submitting a PR. The CI runs the full suite
-on Python 3.9 – 3.13 automatically.
+All tests must pass before submitting a PR. The CI runs the full suite
+on Python 3.9 to 3.13 automatically.
 
 ---
 
@@ -127,6 +127,28 @@ python-glpi-utils/
 ├── .github/workflows/   # CI (tests) + CD (release + docs)
 ├── setup.cfg            # Package metadata and config
 └── mkdocs.yml           # Documentation config
+```
+
+---
+
+## Sign your commits (DCO)
+
+Every commit must carry a sign-off certifying the
+[Developer Certificate of Origin 1.1](https://github.com/giovanny07/python-glpi-utils/blob/main/DCO):
+that you wrote the change, or otherwise have the right to submit it under the
+project's license. Add it with `-s`:
+
+```bash
+git commit -s -m "fix: ..."
+# adds: Signed-off-by: Your Name <you@example.com>
+```
+
+The sign-off must use the same email as the commit author. A CI check (`DCO`)
+blocks pull requests with unsigned commits. To sign off commits you already made:
+
+```bash
+git rebase --signoff origin/main
+git push --force-with-lease
 ```
 
 ---

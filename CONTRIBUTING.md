@@ -30,6 +30,28 @@ All tests must pass. CI runs on Python 3.9 to 3.13. For changes that touch HTTP 
 
 ---
 
+## Sign your commits (DCO)
+
+Every commit must carry a sign-off certifying the
+[Developer Certificate of Origin 1.1](https://github.com/giovanny07/python-glpi-utils/blob/main/DCO):
+that you wrote the change, or otherwise have the right to submit it under the
+project's license. Add it with `-s`:
+
+```bash
+git commit -s -m "fix: ..."
+# adds: Signed-off-by: Your Name <you@example.com>
+```
+
+The sign-off must use the same email as the commit author. A CI check (`DCO`)
+blocks pull requests with unsigned commits. To sign off commits you already made:
+
+```bash
+git rebase --signoff origin/main
+git push --force-with-lease
+```
+
+---
+
 ## License
 
 Contributions are accepted under the [AGPL-3.0-or-later](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE).
