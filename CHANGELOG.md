@@ -9,8 +9,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [1.5.0] – 2026-10-13
 
-GLPI 12.0.0 support. Verified against live GLPI 11.0.9 and 12.0.0 containers
-(legacy API, HL API 2.3 and 3.0, sync and async clients).
+GLPI 12.0.0 support. Verified against live GLPI 10.0.28 (legacy API), 11.0.9 and
+12.0.0 containers (legacy API, HL API 2.3 and 3.0, sync and async clients).
 
 **Behaviour change:** `GlpiOAuthClient.search()` / `AsyncGlpiOAuthClient.search()`
 now take an RSQL `filter` and return a list. The previous implementation called
@@ -45,6 +45,15 @@ legacy search-engine `criteria`.
   route map, so `add_sub_item("Ticket", id, "Document", ...)` hit
   `Assistance/Ticket/{id}/Management/Document`. Sub-items now use their own map
   (`Timeline/Document`); `api.document` still uses `Management/Document`.
+- **Legacy `add_sub_item()` failed for followups, tasks and solutions.** GLPI's
+  legacy API does not take the parent from `POST /Ticket/{id}/ITILFollowup`, so
+  the item arrived unlinked and GLPI answered "You don't have permission to
+  perform this action" (reproduced on GLPI 10.0.28, 11.0.9 and 12.0.0, including
+  the README example). `GlpiAPI.add_sub_item()` and `AsyncGlpiAPI.add_sub_item()`
+  now add `itemtype`/`items_id` for `ITILFollowup`, `ITILSolution` and
+  `Document_Item`, and the foreign key (`tickets_id`, `changes_id`...) for
+  `<Parent>Task`, `<Parent>Validation` and `<Parent>Cost`, unless the caller
+  already set them.
 - **`SoftwareLicense` now maps to `Management/License`.** `Assets/SoftwareLicense`
   was deprecated in HL API 2.4, removed in 3.0, and returns HTTP 500 on
   GLPI 12.0.0 under v2.3.
@@ -60,6 +69,9 @@ legacy search-engine `criteria`.
 - `Knowledgebase/Category` (alias `KnowledgebaseCategory`) exists only up to HL
   API 2.3; on 3.0 it returns 404. On the legacy API, GLPI 12 removed the
   `KnowbaseItemCategory` itemtype, and requests for it fail with `GlpiAPIError`.
+- On GLPI 12, `TicketValidation` no longer accepts `users_id_validate`; pass
+  `itemtype_target` and `items_id_target` instead (GLPI change, not handled by
+  the library).
 - Custom asset `state` → `status` (HL API 3.0) comes from the GLPI 12 changelog;
   it was not exercised live because the test instances had no custom assets.
 

@@ -535,6 +535,51 @@ class TestGlpiAPISubItems(unittest.TestCase):
         self.api.add_sub_item("Ticket", 1, "ITILFollowup", {"content": "x"})
         self.assertEqual(mock_req.call_args[0][0], "POST")
 
+    # GLPI's legacy API ignores the parent in the URL on POST; without the
+    # link fields GLPI answers "You don't have permission" (checked live on
+    # GLPI 10.0.28, 11.0.9 and 12.0.0).
+
+    @patch("requests.Session.request")
+    def test_add_sub_item_sets_polymorphic_parent(self, mock_req):
+        mock_req.return_value = mock_response(201, {"id": 1})
+        self.api.add_sub_item("Ticket", 7, "ITILFollowup", {"content": "x"})
+        sent = mock_req.call_args[1]["json"]["input"]
+        self.assertEqual((sent["itemtype"], sent["items_id"]), ("Ticket", 7))
+
+    @patch("requests.Session.request")
+    def test_add_sub_item_sets_solution_parent_for_change(self, mock_req):
+        mock_req.return_value = mock_response(201, {"id": 1})
+        self.api.add_sub_item("Change", 3, "ITILSolution", {"content": "x"})
+        sent = mock_req.call_args[1]["json"]["input"]
+        self.assertEqual((sent["itemtype"], sent["items_id"]), ("Change", 3))
+
+    @patch("requests.Session.request")
+    def test_add_sub_item_sets_foreign_key_for_task(self, mock_req):
+        mock_req.return_value = mock_response(201, {"id": 1})
+        self.api.add_sub_item("Ticket", 7, "TicketTask", {"content": "x"})
+        sent = mock_req.call_args[1]["json"]["input"]
+        self.assertEqual(sent["tickets_id"], 7)
+        self.assertNotIn("itemtype", sent)
+
+    @patch("requests.Session.request")
+    def test_add_sub_item_keeps_explicit_parent(self, mock_req):
+        mock_req.return_value = mock_response(201, {"id": 1})
+        self.api.add_sub_item("Ticket", 7, "ITILFollowup", {"content": "x", "items_id": 99})
+        self.assertEqual(mock_req.call_args[1]["json"]["input"]["items_id"], 99)
+
+    @patch("requests.Session.request")
+    def test_add_sub_item_does_not_mutate_caller_dict(self, mock_req):
+        mock_req.return_value = mock_response(201, {"id": 1})
+        data = {"content": "x"}
+        self.api.add_sub_item("Ticket", 7, "ITILFollowup", data)
+        self.assertEqual(data, {"content": "x"})
+
+    @patch("requests.Session.request")
+    def test_add_sub_item_unknown_type_untouched(self, mock_req):
+        mock_req.return_value = mock_response(201, {"id": 1})
+        self.api.add_sub_item("Computer", 7, "Item_Disk", {"name": "C:"})
+        self.assertEqual(mock_req.call_args[1]["json"]["input"], {"name": "C:"})
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Session utilities

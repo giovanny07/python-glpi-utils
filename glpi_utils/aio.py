@@ -20,7 +20,7 @@ from base64 import b64encode
 from typing import Any, AsyncIterator, Optional
 
 from ._resource import AsyncItemProxy
-from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _flatten_search_params, _parse_content_range, _raise_for_glpi_error
+from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _flatten_search_params, _parse_content_range, _raise_for_glpi_error, _with_parent_link
 from .exceptions import GlpiAPIError, GlpiAuthError, GlpiConnectionError
 from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
@@ -472,7 +472,7 @@ class AsyncGlpiAPI:
         input_data: dict,
         **kwargs: Any,
     ) -> dict:
-        payload: dict = {"input": input_data}
+        payload: dict = {"input": _with_parent_link(itemtype, item_id, sub_itemtype, input_data)}
         payload.update(kwargs)
         return await self._request(
             "POST", f"{itemtype}/{item_id}/{sub_itemtype}", json=payload

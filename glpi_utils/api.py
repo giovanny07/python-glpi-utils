@@ -140,6 +140,31 @@ def _boolify_params(params: dict) -> dict:
     return {k: int(v) if isinstance(v, bool) else v for k, v in params.items()}
 
 
+#: Sub-itemtypes linked to any ITIL object through ``itemtype`` + ``items_id``.
+_POLYMORPHIC_SUBITEMS = frozenset({"ITILFollowup", "ITILSolution", "Document_Item"})
+
+#: Suffixes of sub-itemtypes linked through a foreign key, e.g. TicketTask -> tickets_id.
+_FOREIGN_KEY_SUFFIXES = ("Task", "Validation", "Cost")
+
+
+def _with_parent_link(itemtype: str, item_id: int, sub_itemtype: str, input_data: Any) -> Any:
+    """Return *input_data* with the link to its parent filled in when missing.
+
+    The legacy API ignores the parent in ``POST /Ticket/1/ITILFollowup``;
+    without ``itemtype``/``items_id`` (or ``tickets_id`` for a TicketTask)
+    GLPI refuses the item with a permission error.
+    """
+    if not isinstance(input_data, dict):
+        return input_data
+    data = dict(input_data)
+    if sub_itemtype in _POLYMORPHIC_SUBITEMS:
+        data.setdefault("itemtype", itemtype)
+        data.setdefault("items_id", item_id)
+    elif sub_itemtype.startswith(itemtype) and sub_itemtype[len(itemtype):] in _FOREIGN_KEY_SUFFIXES:
+        data.setdefault(f"{itemtype.lower()}s_id", item_id)
+    return data
+
+
 def _parse_content_range(header: str) -> Optional[int]:
     """Parse GLPI's ``Content-Range`` header and return the total item count.
 
@@ -740,8 +765,12 @@ class GlpiAPI:
         input_data: dict,
         **kwargs: Any,
     ) -> dict:
-        """Add a sub-item to a parent resource."""
-        payload: dict = {"input": input_data}
+        """Add a sub-item to a parent resource.
+
+        The parent link (``itemtype``/``items_id`` or ``tickets_id``...) is
+        added to *input_data* when missing, since GLPI does not infer it.
+        """
+        payload: dict = {"input": _with_parent_link(itemtype, item_id, sub_itemtype, input_data)}
         payload.update(kwargs)
         return self._request(
             "POST", f"{itemtype}/{item_id}/{sub_itemtype}", json=payload

@@ -236,6 +236,17 @@ async def test_async_add_sub_item():
 
 
 @pytest.mark.asyncio
+async def test_async_add_sub_item_sets_parent():
+    api = _make_async_api()
+    mock_cm = _mock_aiohttp_response(201, {"id": 9})
+
+    with patch("aiohttp.ClientSession.request", return_value=mock_cm) as mock_req:
+        await api.add_sub_item("Ticket", 4, "TicketTask", {"content": "x"})
+
+    assert mock_req.call_args[1]["json"]["input"]["tickets_id"] == 4
+
+
+@pytest.mark.asyncio
 async def test_async_proxy_get():
     api = _make_async_api()
     mock_cm = _mock_aiohttp_response(200, {"id": 3, "name": "via proxy"})
