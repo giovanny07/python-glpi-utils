@@ -26,7 +26,7 @@ ruff format glpi_utils/
 mypy glpi_utils/
 ```
 
-All 262 tests must pass. CI runs on Python 3.9 – 3.13.
+All tests must pass. CI runs on Python 3.9 to 3.13. For changes that touch HTTP behaviour, say which GLPI version you tested against.
 
 ---
 

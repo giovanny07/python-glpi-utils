@@ -3,454 +3,91 @@
 [![Tests](https://github.com/giovanny07/python-glpi-utils/actions/workflows/tests.yaml/badge.svg)](https://github.com/giovanny07/python-glpi-utils/actions/workflows/tests.yaml)
 [![PyPI version](https://img.shields.io/pypi/v/glpi-utils.svg)](https://pypi.org/project/glpi-utils/)
 [![Python versions](https://img.shields.io/pypi/pyversions/glpi-utils.svg)](https://pypi.org/project/glpi-utils/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE)
 
-**python-glpi-utils** is a Python library for working with the [GLPI](https://glpi-project.org/) REST API.
+Python client for [GLPI](https://glpi-project.org/) that handles both of its APIs for you: the legacy REST API and the OAuth2 High-Level API, sync or async, with pagination and token refresh built in.
 
-It provides:
-
-- A **synchronous** client (`GlpiAPI`) powered by `requests`.
-- An **asynchronous** client (`AsyncGlpiAPI`) powered by `aiohttp`.
-- **OAuth2 clients** (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11 and 12 high-level API (`/api.php`, HL API 2.x and 3.0) with automatic token refresh and optional version pinning.
-- **Auto-pagination** (`get_all_pages` / `iter_pages`) — fetch every item across all pages with one call.
-- Fluent **item-type accessors** (`api.ticket`, `api.computer`, `api.user`, …) so you write `api.ticket.get_all_pages()` instead of building raw HTTP calls.
-- A `SensitiveFilter` that masks passwords and tokens in debug logs automatically.
-- A **`GLPIVersion`** helper for comparing GLPI versions.
-- A clean **exception hierarchy** so you can catch exactly what you need.
-
-> **Compatibility:**
-> - Legacy REST API (`/apirest.php`): **GLPI 9.1 and above** (tested on 10.x, 11.0.9 and 12.0.0)
-> - High-level OAuth2 API (`/api.php`): **GLPI 11.0.6+** recommended (11.0.5 has permission bugs); tested on 11.0.9 (HL API 2.3) and 12.0.0 (HL API 2.3 and 3.0)
-
----
-
-## Requirements
-
-| Dependency | Version |
-|------------|---------|
-| Python     | ≥ 3.9   |
-| GLPI       | ≥ 9.1   |
-| requests   | ≥ 2.28  |
-| aiohttp    | ≥ 3.9 *(async only)* |
-
----
-
-## Installation
-
-### From PyPI
-
-```bash
-pip install glpi-utils
-```
-
-With async support:
-
-```bash
-pip install glpi-utils[async]
-```
-
-### From source
-
-```bash
-git clone https://github.com/giovanny07/python-glpi-utils
-cd python-glpi-utils
-pip install -e .[async]
-```
-
----
-
-## Quick start
-
-### Synchronous
+You write `api.ticket.get_all_pages()` instead of managing session tokens, `Content-Range` headers, OAuth2 expiry and the different URL layout of each API. MIT licensed, Python 3.9+, one runtime dependency (`requests`; `aiohttp` for async).
 
 ```python
 from glpi_utils import GlpiAPI
 
-api = GlpiAPI(url="https://glpi.example.com", app_token="YOUR_APP_TOKEN")
-api.login(username="glpi", password="glpi")
-
-print("GLPI version:", api.version)   # GLPIVersion('10.0.19')
-print(api.version > 10.0)             # True
-
-tickets = api.ticket.get_all(range="0-9", expand_dropdowns=True)
-for t in tickets:
-    print(f"[{t['id']}] {t['name']}")
-
-api.logout()
-```
-
-### Asynchronous
-
-```python
-import asyncio
-from glpi_utils import AsyncGlpiAPI
-
-async def main():
-    api = AsyncGlpiAPI(url="https://glpi.example.com")
-    await api.login(username="glpi", password="glpi")
-
-    version = await api.get_version()
-    print("GLPI version:", version)
-
-    tickets = await api.ticket.get_all(range="0-9")
-    for t in tickets:
-        print(f"[{t['id']}] {t['name']}")
-
-    await api.logout()
-
-asyncio.run(main())
-```
-
-### Context manager (auto-logout)
-
-```python
-# Sync
-with GlpiAPI(url="https://glpi.example.com") as api:
+with GlpiAPI(url="https://glpi.example.com") as api:      # logs out on exit
     api.login(username="glpi", password="glpi")
-    print(api.version)
+    print(api.version)                                     # 12.0.0
 
-# Async
-async with AsyncGlpiAPI(url="https://glpi.example.com") as api:
-    await api.login(username="glpi", password="glpi")
-    version = await api.get_version()
+    ticket = api.ticket.create({"name": "srv-db01 unreachable", "content": "ICMP loss 100%"})
+    api.ticket.add_sub_item(ticket["id"], "ITILFollowup", {"content": "On-call notified"})
+
+    for t in api.ticket.get_all_pages():                   # every page, fetched for you
+        print(t["id"], t["name"])                          # 7 srv-db01 unreachable
 ```
 
----
+## Why this one
 
-## Authentication
+The most used alternative on PyPI is [`glpi-api`](https://github.com/unistra/python-glpi-api). Choose by what you need:
 
-Three methods are supported (sync and async):
+| | python-glpi-utils | glpi-api |
+|---|---|---|
+| Legacy REST API (`/apirest.php`) | yes | yes |
+| High-Level API with OAuth2 (`/api.php`, GLPI 11 and 12) | yes, with HL API version pinning | no |
+| Async client (`aiohttp`) | yes | no |
+| Fetch every page in one call | `get_all_pages()` / `iter_pages()` | no |
+| Search by field *name* instead of search-option ID | no | yes (`field_id`, `list_search_options`) |
+| `get_multiple_items`, `download_document` | no | yes |
 
-```python
-# 1. Username + password (Basic Auth)
-api.login(username="glpi", password="glpi")
+If you only call the legacy API synchronously and want to search by field names, `glpi-api` is the more established choice. Use this library for async code, the High-Level API, or GLPI 11/12 deployments where OAuth2 is the supported path.
 
-# 2. Personal API token (from user profile → Remote access key)
-api.login(user_token="q56hqkniwot8wntb3z1qarka5atf365taaa2uyjrn")
+## Install
 
-# 3. Environment variables (no arguments needed)
-#    GLPI_URL, GLPI_USER, GLPI_PASSWORD, GLPI_USER_TOKEN, GLPI_APP_TOKEN
-api = GlpiAPI()   # reads GLPI_URL
-api.login()       # reads GLPI_USER + GLPI_PASSWORD or GLPI_USER_TOKEN
+```bash
+pip install glpi-utils             # sync clients
+pip install "glpi-utils[async]"    # + AsyncGlpiAPI / AsyncGlpiOAuthClient
 ```
 
----
+On the GLPI side, enable the API in *Setup → General → API*. For the legacy API, create an API client there if you need an App-Token. For the High-Level API, add an OAuth client in *Setup → OAuth clients* with the `Password` grant and the `api` scope.
 
-## Item-type accessors
+## The four clients
 
-All standard GLPI item types are available as attributes:
-
-| Attribute           | GLPI itemtype      |
-|---------------------|--------------------|
-| `api.ticket`        | `Ticket`           |
-| `api.computer`      | `Computer`         |
-| `api.monitor`       | `Monitor`          |
-| `api.printer`       | `Printer`          |
-| `api.networkequipment` | `NetworkEquipment` |
-| `api.software`      | `Software`         |
-| `api.user`          | `User`             |
-| `api.group`         | `Group`            |
-| `api.entity`        | `Entity`           |
-| `api.location`      | `Location`         |
-| `api.category`      | `ITILCategory`     |
-| `api.problem`       | `Problem`          |
-| `api.change`        | `Change`           |
-| `api.project`       | `Project`          |
-| `api.projecttask`   | `ProjectTask`      |
-| `api.document`      | `Document`         |
-| `api.contract`      | `Contract`         |
-| `api.knowledgebase` | `KnowbaseItem`     |
-| `api.followup`      | `ITILFollowup`     |
-| `api.solution`      | `ITILSolution`     |
-| `api.task`          | `TicketTask`       |
-
-For any other item type use `api.item("YourItemtype")`:
-
-```python
-proxy = api.item("KnowbaseItem")
-articles = proxy.get_all(range="0-4")
-```
-
----
-
-## Auto-pagination
-
-By default `get_all()` returns a single page (50 items). Use `get_all_pages()` to retrieve everything automatically:
-
-```python
-# All tickets — pagination handled transparently
-all_tickets = api.ticket.get_all_pages()
-
-# With filters
-open_tickets = api.ticket.get_all_pages(
-    sort="date_mod",
-    order="DESC",
-    is_deleted=False,
-)
-
-# Custom page size (fewer round-trips on fast networks)
-computers = api.computer.get_all_pages(page_size=100, expand_dropdowns=True)
-
-print(f"Total: {len(all_tickets)} tickets")
-```
-
-For large datasets, use `iter_pages()` to process items batch by batch without loading everything into RAM:
-
-```python
-total = 0
-for page in api.ticket.iter_pages(page_size=100):
-    for ticket in page:
-        process(ticket)
-        total += 1
-print(f"Processed {total} tickets")
-
-# Async version
-async for page in api.ticket.iter_pages(page_size=100):
-    for ticket in page:
-        await process(ticket)
-```
-
----
-
-## OAuth2 (High-level API — GLPI 11 and 12)
-
-> **Requires GLPI 11.0.6+** for full support. GLPI 11.0.5 has a known bug where
-> `DELETE` and `Timeline` sub-items (`Followup`, `Task`, `Solution`) return
-> `ERROR_RIGHT_MISSING` regardless of profile permissions.
-
-For the GLPI 11/12 high-level API (`/api.php`), use the OAuth2 clients.
-
-**Setup in GLPI:** Setup → OAuth clients → Add → Grants: `Password` → Scopes: `api`
-
-> The `client_credentials` grant is **not supported** for the `api` scope in GLPI 11
-> (only works for `inventory`). Always use the `password` grant.
+| Client | GLPI API | Auth | GLPI versions |
+|---|---|---|---|
+| `GlpiAPI` / `AsyncGlpiAPI` | legacy `/apirest.php` | username + password, or personal `user_token`; optional App-Token | 9.1 and later |
+| `GlpiOAuthClient` / `AsyncGlpiOAuthClient` | High-Level `/api.php` | OAuth2 password grant, token refreshed automatically | 11.0.6 and later, 12 |
 
 ```python
 from glpi_utils.oauth import GlpiOAuthClient
 
-# Pass username/password in constructor — used automatically on authenticate()
-# and on any token refresh (no need to pass them again).
-with GlpiOAuthClient(
-    url="https://glpi.example.com",
-    client_id="my-app",
-    client_secret="my-secret",
-    username="glpi",
-    password="glpi",
-    api_version="2.3",   # pin the HL API version (see below)
-) as api:
+with GlpiOAuthClient(url="https://glpi.example.com", client_id="...", client_secret="...",
+                     username="svc-api", password="...", api_version="2.3") as api:
     api.authenticate()
-
-    # Read
-    tickets = api.ticket.get_all_pages()
-
-    # Create / Update / Delete
-    new = api.ticket.create({
-        "name": "Test", "content": "...",
-        "type": 1, "status": 1, "urgency": 3, "impact": 3, "priority": 3,
-    })
-    api.ticket.update({"id": new["id"], "status": 2})
-    api.ticket.delete({"id": new["id"]})
-
-    # Timeline sub-items
-    api.ticket.add_sub_item(new["id"], "ITILFollowup", {
-        "content": "Work in progress.", "is_private": 0,
-    })
+    api.search("Ticket", filter="status.id==1;name=like=*srv*", limit=20)
 ```
 
-```python
-# Async
-import asyncio
-from glpi_utils.oauth import AsyncGlpiOAuthClient
+**Pin `api_version` on the OAuth2 clients.** Without it, GLPI 12 answers with High-Level API 3.0, whose schemas differ from 2.3 on GLPI 11. `api_version="2.3"` works on both. See the [OAuth2 guide](https://giovanny07.github.io/python-glpi-utils/guides/oauth2/) for the differences.
 
-async def main():
-    async with AsyncGlpiOAuthClient(
-        url="https://glpi.example.com",
-        client_id="my-app",
-        client_secret="my-secret",
-        username="glpi",
-        password="glpi",
-    ) as api:
-        await api.authenticate()
-        tickets = await api.ticket.get_all_pages()
-        async for page in api.ticket.iter_pages(page_size=100):
-            for ticket in page:
-                print(ticket["name"])
+All clients share the same accessors (`api.ticket`, `api.computer`, `api.user`, … or `api.item("AnyItemtype")`), CRUD methods, sub-items, typed exceptions (`GlpiAuthError`, `GlpiNotFoundError`, `GlpiPermissionError`…) and debug logging with passwords and tokens masked. Settings can come from environment variables (`GLPI_URL`, `GLPI_USER`, `GLPI_USER_TOKEN`, `GLPI_OAUTH_CLIENT_ID`, `GLPI_API_VERSION`…).
 
-asyncio.run(main())
-```
+## Documentation
 
-The OAuth2 clients support all the same CRUD, sub-item, search and pagination
-methods as `GlpiAPI`. Itemtypes are mapped to their namespaced HL API paths
-automatically (`Ticket` → `Assistance/Ticket`, `Computer` → `Assets/Computer`, etc.).
+Guides and API reference: **https://giovanny07.github.io/python-glpi-utils/**
 
-Environment variables: `GLPI_OAUTH_CLIENT_ID`, `GLPI_OAUTH_CLIENT_SECRET`,
-`GLPI_OAUTH_USERNAME`, `GLPI_OAUTH_PASSWORD`, `GLPI_API_VERSION`.
+- [Quick start](https://giovanny07.github.io/python-glpi-utils/guides/quickstart/) and [authentication](https://giovanny07.github.io/python-glpi-utils/guides/authentication/)
+- [CRUD, sub-items and the search engine](https://giovanny07.github.io/python-glpi-utils/guides/crud/)
+- [Pagination](https://giovanny07.github.io/python-glpi-utils/guides/pagination/)
+- [OAuth2 and the High-Level API](https://giovanny07.github.io/python-glpi-utils/guides/oauth2/), including GLPI 12 / API 3.0
+- [Error handling](https://giovanny07.github.io/python-glpi-utils/guides/error_handling/) and [logging](https://giovanny07.github.io/python-glpi-utils/guides/logging/)
+- Runnable scripts in [`examples/`](https://github.com/giovanny07/python-glpi-utils/tree/main/examples)
 
-### GLPI 12 and HL API versions
+## Status
 
-Without `api_version`, requests go to `/api.php/...` and the server answers with
-its **newest** HL API: 2.3 on GLPI 11, **3.0 on GLPI 12**. Upgrading GLPI from
-11 to 12 therefore changes the schemas your code receives unless you pin a version.
+Beta, actively maintained. Releases follow [semantic versioning](https://semver.org/) and every change is listed in the [CHANGELOG](https://github.com/giovanny07/python-glpi-utils/blob/main/CHANGELOG.md). The legacy clients are the most stable part. The OAuth2 clients follow GLPI's High-Level API, which is still evolving, and their behaviour changed in 1.4 and 1.5.
 
-| GLPI | Versions offered | Unversioned requests get |
-|------|------------------|--------------------------|
-| 11.0.x | 2.0, 2.1, 2.2, 2.3 | 2.3 |
-| 12.0.x | 2.3, 3.0 | 3.0 |
+Tested in CI on Python 3.9 to 3.13 with mocked HTTP. Tested by hand against real servers for 1.5.0 (2026-10-13): GLPI 10.0.28 (legacy API), 11.0.9 and 12.0.0 (legacy API, High-Level API 2.3 and 3.0). Older GLPI 9.x and 10.x releases are expected to work with the legacy clients but are not tested.
 
-Pin `api_version="2.3"` to keep code written for GLPI 11 working on both
-releases. Use `api_version="3.0"` only against GLPI 12. What 3.0 changes:
+## Contributing
 
-- `Knowledgebase/Category` and the `KBCategory` schema are removed; KB articles
-  have `parents` instead of `categories`, and `ITILCategory.knowbase_category`
-  becomes `knowbase_article`.
-- `Assets/SoftwareLicense` is removed. The library already maps `SoftwareLicense`
-  to `Management/License`, which works on every version.
-- The `TeamMember` schema splits into `UserTeamMember`, `GroupTeamMember` and
-  `SupplierTeamMember`; `OLA` gains `group`.
-- New `Security/LoginSession` endpoints (list and revoke sessions).
-- Custom asset schemas rename `state` to `status`.
-
-```python
-api.get_version()        # GLPIVersion('12.0.0')  (GET /Setup/Config/core/version)
-api.get_api_versions()   # [{'api_version': '2', 'version': '2.3.0', ...}, {'api_version': '3', ...}]
-
-# RSQL search on any collection
-api.search("Ticket", filter="name=like=*srv*;status.id==1", limit=20)
-```
-
-The HL API paginates with `start`/`limit` (default limit 100) and ignores the
-legacy `range` parameter. `get_all_pages()` and `iter_pages()` send `start`/`limit`;
-`get_all(range="0-49")` is translated for you.
-
----
-
-## CRUD operations
-
-Every item-type accessor exposes the same set of methods:
-
-```python
-# Read
-ticket  = api.ticket.get(1, expand_dropdowns=True)
-tickets = api.ticket.get_all(range="0-49", sort="date_mod", order="DESC")
-
-# Search engine
-results = api.ticket.search(
-    criteria=[{"field": 12, "searchtype": "equals", "value": 1}],
-    forcedisplay=[1, 3, 12],
-    range="0-49",
-)
-
-# Create
-new = api.ticket.create({
-    "name": "Service degraded",
-    "content": "Users report slow response times.",
-    "type": 1,
-    "status": 1,
-    "urgency": 3,
-    "impact": 3,
-    "priority": 3,
-})
-
-# Update (id required)
-api.ticket.update({"id": new["id"], "status": 2})   # Assigned
-
-# Delete
-api.ticket.delete({"id": new["id"]})                 # to trash
-api.ticket.delete({"id": new["id"]}, force_purge=True)  # permanent
-```
-
-### Sub-items (followups, tasks, solutions)
-
-```python
-# Read followups
-followups = api.ticket.get_sub_items(1, "ITILFollowup")
-
-# Add a followup
-api.ticket.add_sub_item(1, "ITILFollowup", {
-    "content": "Confirmed issue on node 3.",
-    "is_private": 0,
-})
-```
-
----
-
-## GLPIVersion
-
-```python
-ver = api.version
-print(type(ver).__name__, ver)   # GLPIVersion 10.0.19
-
-print(ver > 10.0)       # True
-print(ver == "10.0.19") # True
-print(ver.major)        # 10
-print(ver.minor)        # 0
-print(ver.patch)        # 19
-```
-
----
-
-## Error handling
-
-```python
-from glpi_utils import (
-    GlpiError,
-    GlpiAPIError,
-    GlpiAuthError,
-    GlpiNotFoundError,
-    GlpiPermissionError,
-)
-
-try:
-    ticket = api.ticket.get(99999)
-except GlpiNotFoundError:
-    print("Ticket does not exist")
-except GlpiPermissionError:
-    print("Insufficient rights")
-except GlpiAuthError:
-    print("Session expired – re-login")
-except GlpiAPIError as e:
-    print(f"API error {e.error_code}: {e.message}")
-except GlpiError:
-    print("Generic library error")
-```
-
----
-
-## Enabling debug logging
-
-The library is silent by default. Enable with standard `logging`:
-
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-from glpi_utils import GlpiAPI
-api = GlpiAPI(url="https://glpi.example.com")
-api.login(username="glpi", password="glpi")
-```
-
-Passwords, tokens and session IDs are **masked automatically** by `SensitiveFilter`. To add your own handler with masking:
-
-```python
-from glpi_utils import SensitiveFilter
-
-handler = logging.StreamHandler()
-handler.addFilter(SensitiveFilter())
-logging.getLogger("glpi_utils").addHandler(handler)
-logging.getLogger("glpi_utils").setLevel(logging.DEBUG)
-```
-
----
-
-## Running the tests
-
-```bash
-pip install -e ".[async,dev]"
-pytest
-```
-
----
+Bug reports with your GLPI version and a traceback are the most useful contribution: [open an issue](https://github.com/giovanny07/python-glpi-utils/issues). For code, see the [contributing guide](https://github.com/giovanny07/python-glpi-utils/blob/main/CONTRIBUTING.md).
 
 ## License
 
-**python-glpi-utils** is distributed under the [MIT License](LICENSE).
+[MIT](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE).
