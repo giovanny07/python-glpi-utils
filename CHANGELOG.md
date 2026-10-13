@@ -7,6 +7,28 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [Unreleased]
+
+### Removed
+
+- **GLPI 9.x is no longer listed as supported.** The README and docs claimed
+  "9.1 and later" (one page said "tested on 9.x"), but no 9.x release was ever
+  tested and the official `glpi/glpi` images start at 10.0. Supported: GLPI
+  10.0, 11.x and 12.x; the High-Level API clients need 11.0.6+.
+
+### Added
+
+- **Integration tests against real GLPI in CI** (`tests/integration`,
+  `.github/workflows/integration.yaml`): both clients, sync and async, against
+  the latest patch of `glpi/glpi:10.0`, `11.0` and `12.0` on every pull request
+  and weekly. Each bug fixed in 1.5.0 has a test that fails on the old
+  behaviour. Skipped locally unless `GLPI_IT_URL` is set.
+- **DCO sign-off required on contributions** (`DCO`, `dco` CI check).
+- **Lint and type checks in CI:** `ruff check` (rules in `ruff.toml`) and
+  `mypy --strict`, pinned versions; the code base is clean on both.
+
+---
+
 ## [2.0.0] – 2026-10-13
 
 **License change: MIT → AGPL-3.0-or-later.** From 2.0.0 on, python-glpi-utils is

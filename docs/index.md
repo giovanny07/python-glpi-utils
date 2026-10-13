@@ -26,12 +26,12 @@
 
 | Client | Endpoint | GLPI version |
 |--------|----------|-------------|
-| `GlpiAPI` | `/apirest.php` | **≥ 9.1** (tested on 10.x, 11.x and 12.0) |
-| `AsyncGlpiAPI` | `/apirest.php` | **≥ 9.1** (tested on 10.x, 11.x and 12.0) |
-| `GlpiOAuthClient` | `/api.php` | **11+ only** |
-| `AsyncGlpiOAuthClient` | `/api.php` | **11+ only** |
+| `GlpiAPI` | `/apirest.php` | **10.0, 11.x, 12.x** |
+| `AsyncGlpiAPI` | `/apirest.php` | **10.0, 11.x, 12.x** |
+| `GlpiOAuthClient` | `/api.php` | **11.0.6+, 12.x** |
+| `AsyncGlpiOAuthClient` | `/api.php` | **11.0.6+, 12.x** |
 
-The legacy REST API (`/apirest.php`) has been stable since GLPI 9.1 and works without changes across 9.x, 10.x, 11.x and 12.x.
+The legacy REST API (`/apirest.php`) works the same on GLPI 10.0, 11.x and 12.x. GLPI 9.x is not supported. Tested in CI against real servers: the latest patch of GLPI 10.0, 11.0 and 12.0, on every pull request and weekly.
 The high-level OAuth2 API (`/api.php`) was introduced in GLPI 11 (HL API 2.x); GLPI 12 adds HL API 3.0.
 
 ---

@@ -5,7 +5,7 @@
 | Dependency | Version |
 |------------|---------|
 | Python     | ≥ 3.9   |
-| GLPI       | ≥ 9.1   |
+| GLPI       | ≥ 10.0  |
 | requests   | ≥ 2.28  |
 | aiohttp    | ≥ 3.9 *(async only)* |
 
@@ -13,10 +13,10 @@
 
 | Client | Endpoint | GLPI version |
 |--------|----------|-------------|
-| `GlpiAPI` / `AsyncGlpiAPI` | `/apirest.php` | **≥ 9.1** — tested on 9.x, 10.x and 11.x |
-| `GlpiOAuthClient` / `AsyncGlpiOAuthClient` | `/api.php` | **11+ only** |
+| `GlpiAPI` / `AsyncGlpiAPI` | `/apirest.php` | **10.0, 11.x, 12.x** |
+| `GlpiOAuthClient` / `AsyncGlpiOAuthClient` | `/api.php` | **11.0.6+, 12.x** |
 
-The legacy REST API (`/apirest.php`) has been stable since GLPI 9.1. The OAuth2 high-level API (`/api.php`) was introduced in GLPI 11.
+The OAuth2 high-level API (`/api.php`) was introduced in GLPI 11. GLPI 9.x is not supported. Tested in CI against real servers: the latest patch of GLPI 10.0, 11.0 and 12.0, on every pull request and weekly.
 
 ---
 

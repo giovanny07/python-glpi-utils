@@ -56,7 +56,7 @@ On the GLPI side, enable the API in *Setup → General → API*. For the legacy 
 
 | Sync / async | GLPI API | Auth | GLPI versions |
 |---|---|---|---|
-| `GlpiAPI` / `AsyncGlpiAPI` | legacy `/apirest.php` | username + password, or personal `user_token` | 9.1 and later |
+| `GlpiAPI` / `AsyncGlpiAPI` | legacy `/apirest.php` | username + password, or personal `user_token` | 10.0 and later |
 | `GlpiOAuthClient` / `AsyncGlpiOAuthClient` | High-Level `/api.php` | OAuth2 password grant, token refreshed automatically | 11.0.6 and later, 12 |
 
 ```python
@@ -87,7 +87,7 @@ Guides and API reference: **https://giovanny07.github.io/python-glpi-utils/**
 
 Beta, actively maintained. Releases follow [semantic versioning](https://semver.org/) and every change is listed in the [CHANGELOG](https://github.com/giovanny07/python-glpi-utils/blob/main/CHANGELOG.md). The legacy clients are the most stable part. The OAuth2 clients follow GLPI's High-Level API, which is still evolving, and their behaviour changed in 1.4 and 1.5.
 
-Tested in CI on Python 3.9 to 3.13 with mocked HTTP. Tested by hand against real servers for 1.5.0 (2026-10-13): GLPI 10.0.28 (legacy API), 11.0.9 and 12.0.0 (legacy API, High-Level API 2.3 and 3.0). Older GLPI 9.x and 10.x releases are expected to work with the legacy clients but are not tested.
+Unit tests run in CI on Python 3.9 to 3.13. Integration tests run both clients, sync and async, against official `glpi/glpi` containers: the latest patch of GLPI 10.0 (legacy API), 11.0 and 12.0 (legacy API and every High-Level API version the server offers), on every pull request and weekly. GLPI 9.x is not supported.
 
 ## Contributing
 

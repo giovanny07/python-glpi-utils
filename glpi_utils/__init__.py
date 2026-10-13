@@ -5,7 +5,7 @@
 glpi_utils
 ~~~~~~~~~~
 
-Python library for the GLPI REST API (legacy and High-Level, GLPI 9.1 to 12).
+Python library for the GLPI REST API (legacy and High-Level, GLPI 10 to 12).
 
 Clients
 -------

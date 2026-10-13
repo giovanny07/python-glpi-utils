@@ -1,5 +1,5 @@
 !!! warning "GLPI 11 and 12 only"
-    The OAuth2 high-level API (`/api.php`) was introduced in GLPI 11. If you are running GLPI 9.x or 10.x, use `GlpiAPI` or `AsyncGlpiAPI` instead.
+    The OAuth2 high-level API (`/api.php`) was introduced in GLPI 11. If you are running GLPI 10.x, use `GlpiAPI` or `AsyncGlpiAPI` instead.
 
 !!! warning "GLPI 11.0.6+ recommended"
     `DELETE` and `Timeline` sub-item endpoints (`Followup`, `Task`, `Solution`) return
