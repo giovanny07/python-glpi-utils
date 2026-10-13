@@ -18,12 +18,9 @@ pip install -e ".[async,dev]"
 # Test
 pytest
 
-# Lint + format
-ruff check glpi_utils/
-ruff format glpi_utils/
-
-# Type check
-mypy glpi_utils/
+# Lint and type check (CI runs both)
+ruff check .
+mypy glpi_utils
 ```
 
 All tests must pass. CI runs on Python 3.9 to 3.13. For changes that touch HTTP behaviour, say which GLPI version you tested against.

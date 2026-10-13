@@ -20,10 +20,19 @@ from __future__ import annotations
 import logging
 import os
 from base64 import b64encode
-from typing import Any, AsyncIterator, Optional
+from collections.abc import AsyncIterator
+from typing import Any, Optional
 
 from ._resource import AsyncItemProxy
-from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _flatten_search_params, _parse_content_range, _raise_for_glpi_error, _with_parent_link
+from .api import (
+    _ITEMTYPE_MAP,
+    DEFAULT_PAGE_SIZE,
+    _boolify_params,
+    _flatten_search_params,
+    _parse_content_range,
+    _raise_for_glpi_error,
+    _with_parent_link,
+)
 from .exceptions import GlpiAPIError, GlpiAuthError, GlpiConnectionError
 from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
@@ -99,13 +108,13 @@ class AsyncGlpiAPI:
         self._session_token: Optional[str] = None
         self._http: Any = None
         self._version: Optional[GLPIVersion] = None
-        self._proxies: dict = {}
+        self._proxies: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Async context manager
     # ------------------------------------------------------------------
 
-    async def __aenter__(self) -> "AsyncGlpiAPI":
+    async def __aenter__(self) -> AsyncGlpiAPI:
         return self
 
     async def __aexit__(self, *_: Any) -> None:
@@ -155,8 +164,8 @@ class AsyncGlpiAPI:
             self._http = aiohttp.ClientSession(connector=connector)
         return self._http
 
-    def _default_headers(self) -> dict:
-        headers: dict = {"Content-Type": "application/json"}
+    def _default_headers(self) -> dict[str, Any]:
+        headers: dict[str, Any] = {"Content-Type": "application/json"}
         if self._app_token:
             headers["App-Token"] = self._app_token
         if self._session_token:
@@ -168,8 +177,8 @@ class AsyncGlpiAPI:
         method: str,
         path: str,
         *,
-        headers: Optional[dict] = None,
-        params: Optional[dict] = None,
+        headers: Optional[dict[str, Any]] = None,
+        params: Optional[dict[str, Any]] = None,
         json: Any = None,
     ) -> Any:
         body, _ = await self._request_with_headers(
@@ -182,10 +191,10 @@ class AsyncGlpiAPI:
         method: str,
         path: str,
         *,
-        headers: Optional[dict] = None,
-        params: Optional[dict] = None,
+        headers: Optional[dict[str, Any]] = None,
+        params: Optional[dict[str, Any]] = None,
         json: Any = None,
-    ) -> tuple:
+    ) -> tuple[Any, Any]:
         """Like ``_request`` but returns ``(body, response_headers)``."""
         import aiohttp
 
@@ -218,7 +227,7 @@ class AsyncGlpiAPI:
                     status_code = status
                     content = True
 
-                    def json(self_):
+                    def json(self_) -> Any:
                         return body
 
                     text = str(body)
@@ -246,7 +255,7 @@ class AsyncGlpiAPI:
         password   = password   or os.environ.get("GLPI_PASSWORD")
         user_token = user_token or os.environ.get("GLPI_USER_TOKEN")
 
-        auth_headers: dict = {}
+        auth_headers: dict[str, Any] = {}
 
         if user_token:
             auth_headers["Authorization"] = f"user_token {user_token}"
@@ -307,23 +316,23 @@ class AsyncGlpiAPI:
     # Session utilities
     # ------------------------------------------------------------------
 
-    async def get_my_profiles(self) -> list:
+    async def get_my_profiles(self) -> list[Any]:
         return (await self._request("GET", "getMyProfiles"))["myprofiles"]
 
-    async def get_active_profile(self) -> dict:
+    async def get_active_profile(self) -> dict[str, Any]:
         return (await self._request("GET", "getActiveProfile"))["active_profile"]
 
     async def set_active_profile(self, profile_id: int) -> None:
         await self._request("POST", "changeActiveProfile", json={"profiles_id": profile_id})
 
-    async def get_my_entities(self, is_recursive: bool = False) -> list:
+    async def get_my_entities(self, is_recursive: bool = False) -> list[Any]:
         return (
             await self._request(
                 "GET", "getMyEntities", params={"is_recursive": int(is_recursive)}
             )
         )["myentities"]
 
-    async def get_active_entities(self) -> dict:
+    async def get_active_entities(self) -> dict[str, Any]:
         return (await self._request("GET", "getActiveEntities"))["active_entity"]
 
     async def set_active_entity(self, entity_id: int, is_recursive: bool = False) -> None:
@@ -332,18 +341,18 @@ class AsyncGlpiAPI:
             json={"entities_id": entity_id, "is_recursive": int(is_recursive)},
         )
 
-    async def get_full_session(self) -> dict:
+    async def get_full_session(self) -> dict[str, Any]:
         return (await self._request("GET", "getFullSession"))["session"]
 
     # ------------------------------------------------------------------
     # Item CRUD
     # ------------------------------------------------------------------
 
-    async def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict:
+    async def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict[str, Any]:
         params = _boolify_params(kwargs)
         return await self._request("GET", f"{itemtype}/{item_id}", params=params)
 
-    async def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
+    async def get_all_items(self, itemtype: str, **kwargs: Any) -> list[Any]:
         """Return a single page of items (default range ``0-49``).
 
         Use :meth:`get_all_pages` to retrieve all items automatically.
@@ -358,7 +367,7 @@ class AsyncGlpiAPI:
         itemtype: str,
         page_size: int = DEFAULT_PAGE_SIZE,
         **kwargs: Any,
-    ) -> list:
+    ) -> list[Any]:
         """Fetch **all** items of *itemtype* by iterating pages automatically.
 
         Parameters
@@ -375,7 +384,7 @@ class AsyncGlpiAPI:
         list
             All matching items as a flat list of dicts.
         """
-        results: list = []
+        results: list[Any] = []
         async for page in self.iter_pages(itemtype, page_size=page_size, **kwargs):
             results.extend(page)
         return results
@@ -385,7 +394,7 @@ class AsyncGlpiAPI:
         itemtype: str,
         page_size: int = DEFAULT_PAGE_SIZE,
         **kwargs: Any,
-    ) -> AsyncIterator[list]:
+    ) -> AsyncIterator[list[Any]]:
         """Yield one page of items at a time asynchronously.
 
         Parameters
@@ -427,17 +436,17 @@ class AsyncGlpiAPI:
 
             start += page_size
 
-    async def search(self, itemtype: str, **kwargs: Any) -> dict:
+    async def search(self, itemtype: str, **kwargs: Any) -> dict[str, Any]:
         params = _boolify_params(_flatten_search_params(kwargs))
         return await self._request("GET", f"search/{itemtype}", params=params)
 
     async def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
-        payload: dict = {"input": input_data}
+        payload: dict[str, Any] = {"input": input_data}
         payload.update(kwargs)
         return await self._request("POST", itemtype, json=payload)
 
-    async def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
-        payload: dict = {"input": input_data}
+    async def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list[Any]:
+        payload: dict[str, Any] = {"input": input_data}
         payload.update(kwargs)
         return await self._request("PUT", itemtype, json=payload)
 
@@ -447,8 +456,8 @@ class AsyncGlpiAPI:
         input_data: Any,
         force_purge: bool = False,
         history: bool = True,
-    ) -> list:
-        payload: dict = {
+    ) -> list[Any]:
+        payload: dict[str, Any] = {
             "input": input_data,
             "force_purge": int(force_purge),
             "history": int(history),
@@ -461,7 +470,7 @@ class AsyncGlpiAPI:
 
     async def get_sub_items(
         self, itemtype: str, item_id: int, sub_itemtype: str, **kwargs: Any
-    ) -> list:
+    ) -> list[Any]:
         params = _boolify_params(kwargs)
         return await self._request(
             "GET", f"{itemtype}/{item_id}/{sub_itemtype}", params=params
@@ -472,14 +481,14 @@ class AsyncGlpiAPI:
         itemtype: str,
         item_id: int,
         sub_itemtype: str,
-        input_data: dict,
+        input_data: dict[str, Any],
         **kwargs: Any,
-    ) -> dict:
-        payload: dict = {"input": _with_parent_link(itemtype, item_id, sub_itemtype, input_data)}
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {"input": _with_parent_link(itemtype, item_id, sub_itemtype, input_data)}
         payload.update(kwargs)
         return await self._request(
             "POST", f"{itemtype}/{item_id}/{sub_itemtype}", json=payload
         )
 
-    async def list_item_types(self) -> list:
+    async def list_item_types(self) -> list[Any]:
         return await self._request("GET", "listItemtypes")

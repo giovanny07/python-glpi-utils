@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025-2026 Giovanny Rodriguez, Imagunet
+
+target-version = "py39"
+line-length = 120
+
+[lint]
+# pycodestyle, pyflakes, isort, pyupgrade, bugbear
+select = ["E", "F", "W", "I", "UP", "B"]
+# Keep typing.Optional: X | None needs Python 3.10 at runtime (get_type_hints).
+ignore = ["UP045", "UP007"]

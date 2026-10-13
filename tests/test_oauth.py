@@ -12,16 +12,13 @@ All HTTP calls are mocked – no live GLPI server required.
 from __future__ import annotations
 
 import os
-import time
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from glpi_utils.exceptions import GlpiAuthError, GlpiConnectionError, GlpiNotFoundError
-from glpi_utils.logger import SensitiveFilter
-from glpi_utils.oauth import AsyncGlpiOAuthClient, GlpiOAuthClient, _TokenStore
-
+from glpi_utils.exceptions import GlpiAuthError, GlpiNotFoundError
+from glpi_utils.oauth import AsyncGlpiOAuthClient, GlpiOAuthClient, _hl_route, _TokenStore
 
 # ──────────────────────────────────────────────────────────────────────────────
 # _TokenStore
@@ -490,7 +487,7 @@ async def test_async_oauth_context_manager():
 # _hl_route — GLPI 11 HL API route mapping
 # ──────────────────────────────────────────────────────────────────────────────
 
-from glpi_utils.oauth import _hl_route
+
 
 class TestHlRoute(unittest.TestCase):
 

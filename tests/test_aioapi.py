@@ -18,9 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from glpi_utils import AsyncGlpiAPI, GlpiAuthError
-from glpi_utils.exceptions import GlpiConnectionError
 from glpi_utils.version import GLPIVersion
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers

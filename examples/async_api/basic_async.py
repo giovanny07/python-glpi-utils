@@ -17,6 +17,7 @@ Usage:
 
 import asyncio
 import os
+
 from glpi_utils import AsyncGlpiAPI, GlpiNotFoundError
 
 URL       = os.environ.get("GLPI_URL",        "https://glpi.example.com")

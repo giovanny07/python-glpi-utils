@@ -12,15 +12,14 @@ Content-Range header parsing, and proxy forwarding.
 from __future__ import annotations
 
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from glpi_utils import AsyncGlpiAPI, GlpiAPI
+from glpi_utils import AsyncGlpiAPI
 from glpi_utils.api import _parse_content_range
 
 from .common import make_api, mock_response
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # _parse_content_range
