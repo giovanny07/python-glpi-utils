@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025-2026 Giovanny Rodriguez, Imagunet
+
 """
 Basic usage — asynchronous client (AsyncGlpiAPI)
 Works with GLPI 9.1, 10.x and 11.x via /apirest.php

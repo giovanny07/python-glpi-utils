@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025-2026 Giovanny Rodriguez, Imagunet
 """
 Extract the changelog entry for a given version from CHANGELOG.md.
 Usage: python3 extract_changelog.py 1.4.4

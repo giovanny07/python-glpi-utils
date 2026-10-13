@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025-2026 Giovanny Rodriguez, Imagunet
+
 """
 glpi_utils
 ~~~~~~~~~~
@@ -41,7 +44,7 @@ from .exceptions import (
 from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
 
-__version__ = "1.5.0"
+__version__ = "2.0.0"
 
 __all__ = [
     # Clients
