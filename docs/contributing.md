@@ -134,4 +134,10 @@ python-glpi-utils/
 ## License
 
 By contributing you agree that your contributions will be licensed under the
-[MIT License](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE).
+[GNU Affero General Public License v3.0 or later](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE)
+(AGPL-3.0-or-later). New source files start with:
+
+```python
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2025-2026 Giovanny Rodriguez, Imagunet
+```

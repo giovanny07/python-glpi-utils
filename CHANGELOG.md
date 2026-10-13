@@ -7,6 +7,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [2.0.0] – 2026-10-13
+
+**License change: MIT → AGPL-3.0-or-later.** From 2.0.0 on, python-glpi-utils is
+distributed under the GNU Affero General Public License, version 3 or (at your
+option) any later version. Releases up to and including 1.5.0 stay under the MIT
+License. The major version bump marks the license change only: the Python API
+is identical to 1.5.0, so pins such as `glpi-utils~=1.5` keep resolving to MIT
+releases until you choose to upgrade.
+
+### Changed
+
+- `LICENSE` now holds the AGPL v3 text from gnu.org; `setup.cfg` declares
+  `license_expression = AGPL-3.0-or-later`.
+- Every Python file carries `SPDX-License-Identifier: AGPL-3.0-or-later` and
+  `Copyright (C) 2025-2026 Giovanny Rodriguez, Imagunet`.
+- README, docs and contributing guides state the new license; the comparison
+  table lists each library's license.
+
+---
+
 ## [1.5.0] – 2026-10-13
 
 GLPI 12.0.0 support. Verified against live GLPI 10.0.28 (legacy API), 11.0.9 and

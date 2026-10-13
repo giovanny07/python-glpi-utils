@@ -3,11 +3,11 @@
 [![Tests](https://github.com/giovanny07/python-glpi-utils/actions/workflows/tests.yaml/badge.svg)](https://github.com/giovanny07/python-glpi-utils/actions/workflows/tests.yaml)
 [![PyPI version](https://img.shields.io/pypi/v/glpi-utils.svg)](https://pypi.org/project/glpi-utils/)
 [![Python versions](https://img.shields.io/pypi/pyversions/glpi-utils.svg)](https://pypi.org/project/glpi-utils/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE)
 
 Python client for [GLPI](https://glpi-project.org/) that handles both of its APIs for you: the legacy REST API and the OAuth2 High-Level API, sync or async, with pagination and token refresh built in.
 
-You write `api.ticket.get_all_pages()` instead of managing session tokens, `Content-Range` headers, OAuth2 expiry and the different URL layout of each API. MIT licensed, Python 3.9+, depends on `requests` (plus `aiohttp` for the async clients).
+You write `api.ticket.get_all_pages()` instead of managing session tokens, `Content-Range` headers, OAuth2 expiry and the different URL layout of each API. Licensed under the [AGPL-3.0-or-later](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE) since 2.0.0 (1.5.0 and earlier remain MIT). Python 3.9+, depends on `requests` (plus `aiohttp` for the async clients).
 
 ```bash
 pip install glpi-utils      # imported as glpi_utils
@@ -39,6 +39,7 @@ The most used alternative on PyPI is [`glpi-api`](https://github.com/unistra/pyt
 | Fetch every page in one call | `get_all_pages()` / `iter_pages()` | no |
 | Legacy search engine by field *name* (mapped to numeric search-option IDs) | no, pass the IDs | yes (`field_id`, `list_search_options`) |
 | `get_multiple_items`, `download_document` | no | yes |
+| License | AGPL-3.0-or-later | GPL-3.0 |
 
 If you only call the legacy API synchronously and want to search it by field names, `glpi-api` is the more established choice. Use this library for async code or for the High-Level API of GLPI 11 and 12. Both libraries work with the legacy API on GLPI 12.
 
@@ -94,4 +95,8 @@ Bug reports with your GLPI version and a traceback are the most useful contribut
 
 ## License
 
-[MIT](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE).
+Copyright (C) 2025-2026 Giovanny Rodriguez, Imagunet.
+
+This program is free software: you can redistribute it and/or modify it under the terms of the [GNU Affero General Public License](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. It is distributed WITHOUT ANY WARRANTY; see the license for details.
+
+Releases up to and including 1.5.0 were published under the MIT License and remain available under it.

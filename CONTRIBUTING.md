@@ -30,6 +30,13 @@ All tests must pass. CI runs on Python 3.9 to 3.13. For changes that touch HTTP 
 
 ---
 
+## License
+
+Contributions are accepted under the [AGPL-3.0-or-later](https://github.com/giovanny07/python-glpi-utils/blob/main/LICENSE).
+New source files start with an `SPDX-License-Identifier: AGPL-3.0-or-later` header.
+
+---
+
 ## Reporting bugs
 
 Open an issue at [github.com/giovanny07/python-glpi-utils/issues](https://github.com/giovanny07/python-glpi-utils/issues).
