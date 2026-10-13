@@ -3,7 +3,7 @@
 
 """
 Basic usage — synchronous client (GlpiAPI)
-Works with GLPI 9.1, 10.x and 11.x via /apirest.php
+Works with GLPI 10.0, 11.x and 12.x via /apirest.php
 
 Usage:
     export GLPI_URL=https://glpi.example.com
