@@ -7,6 +7,70 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [1.5.0] – 2026-10-13
+
+GLPI 12.0.0 support. Verified against live GLPI 11.0.9 and 12.0.0 containers
+(legacy API, HL API 2.3 and 3.0, sync and async clients).
+
+**Behaviour change:** `GlpiOAuthClient.search()` / `AsyncGlpiOAuthClient.search()`
+now take an RSQL `filter` and return a list. The previous implementation called
+`/api.php/search/...`, a path the HL API does not have (it answered 404), so no
+working code depended on it. Migrate by passing `filter="..."` instead of
+legacy search-engine `criteria`.
+
+### Added
+
+- **`api_version` pinning for the OAuth2 clients.** On GLPI 12, unversioned
+  `/api.php/...` requests are served by HL API 3.0, so an upgrade from GLPI 11
+  silently changed response schemas. `api_version="2.3"` (or `"3.0"`, or the
+  `GLPI_API_VERSION` env var) prefixes every request with `/api.php/v2.3`.
+  The token endpoint stays unversioned. Exposed as `api.api_version`.
+- **`get_api_versions()`** on both OAuth2 clients: returns the versions the
+  server offers (`GET /api.php/`).
+- **`get_version()` on `AsyncGlpiOAuthClient`**, matching the sync client.
+- `ChangeTask`, `ProblemTask`, `ChangeValidation` sub-item routes.
+
+### Fixed
+
+- **OAuth2 auto-pagination duplicated and dropped items past 100 results.** The
+  HL API ignores `range` and returns its default limit of 100, so `iter_pages()`
+  re-read the first 100 items on every page. On GLPI 12.0.0 with 130 locations,
+  1.4.5 returned 200 rows, 100 of them unique, and never the last 30. Pagination
+  now sends `start`/`limit`; `get_all(range="a-b")` is translated to
+  `start`/`limit`.
+- **`get_version()` on the OAuth2 client always returned `0.0.0`.** The API root
+  has no version field; the version is now read from
+  `GET /Setup/Config/core/version`.
+- **Timeline documents went to the wrong route.** `Document` appeared twice in the
+  route map, so `add_sub_item("Ticket", id, "Document", ...)` hit
+  `Assistance/Ticket/{id}/Management/Document`. Sub-items now use their own map
+  (`Timeline/Document`); `api.document` still uses `Management/Document`.
+- **`SoftwareLicense` now maps to `Management/License`.** `Assets/SoftwareLicense`
+  was deprecated in HL API 2.4, removed in 3.0, and returns HTTP 500 on
+  GLPI 12.0.0 under v2.3.
+
+### Changed
+
+- README, `docs/index.md` and `docs/guides/oauth2.md` document GLPI 12, the
+  version table, HL API 3.0 schema changes, `start`/`limit` pagination and RSQL
+  search. Package metadata lists GLPI 12.x.
+
+### Known issues
+
+- `Knowledgebase/Category` (alias `KnowledgebaseCategory`) exists only up to HL
+  API 2.3; on 3.0 it returns 404. On the legacy API, GLPI 12 removed the
+  `KnowbaseItemCategory` itemtype, and requests for it fail with `GlpiAPIError`.
+- Custom asset `state` → `status` (HL API 3.0) comes from the GLPI 12 changelog;
+  it was not exercised live because the test instances had no custom assets.
+
+### Tests
+
+- `tests/test_glpi12.py`: 30 tests for version normalization and URLs,
+  `start`/`limit` pagination (sync and async), route fixes, version discovery and
+  RSQL search.
+
+---
+
 ## [1.4.5] – 2026-06-22
 
 ### Fixed

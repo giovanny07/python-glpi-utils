@@ -13,7 +13,7 @@
 
 - 🔄 **Synchronous** client (`GlpiAPI`) powered by `requests`
 - ⚡ **Asynchronous** client (`AsyncGlpiAPI`) powered by `aiohttp`
-- 🔐 **OAuth2** clients (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11+ high-level API with automatic token refresh
+- 🔐 **OAuth2** clients (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11 and 12 high-level API (HL API 2.x and 3.0) with automatic token refresh
 - 📄 **Auto-pagination** — fetch every item across all pages with a single call (`get_all_pages` / `iter_pages`)
 - 🧩 **Fluent accessors** — write `api.ticket.get(1)` instead of building raw HTTP calls
 - 🔒 **`SensitiveFilter`** — masks passwords and tokens in debug logs automatically
@@ -26,13 +26,13 @@
 
 | Client | Endpoint | GLPI version |
 |--------|----------|-------------|
-| `GlpiAPI` | `/apirest.php` | **≥ 9.1** (tested on 10.x and 11.x) |
-| `AsyncGlpiAPI` | `/apirest.php` | **≥ 9.1** (tested on 10.x and 11.x) |
+| `GlpiAPI` | `/apirest.php` | **≥ 9.1** (tested on 10.x, 11.x and 12.0) |
+| `AsyncGlpiAPI` | `/apirest.php` | **≥ 9.1** (tested on 10.x, 11.x and 12.0) |
 | `GlpiOAuthClient` | `/api.php` | **11+ only** |
 | `AsyncGlpiOAuthClient` | `/api.php` | **11+ only** |
 
-The legacy REST API (`/apirest.php`) has been stable since GLPI 9.1 and works without changes across 9.x, 10.x and 11.x.
-The high-level OAuth2 API (`/api.php`) was introduced in GLPI 11.
+The legacy REST API (`/apirest.php`) has been stable since GLPI 9.1 and works without changes across 9.x, 10.x, 11.x and 12.x.
+The high-level OAuth2 API (`/api.php`) was introduced in GLPI 11 (HL API 2.x); GLPI 12 adds HL API 3.0.
 
 ---
 

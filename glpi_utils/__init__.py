@@ -2,7 +2,7 @@
 glpi_utils
 ~~~~~~~~~~
 
-Python library for the GLPI 11 REST API.
+Python library for the GLPI REST API (legacy and High-Level, GLPI 9.1 to 12).
 
 Clients
 -------
@@ -41,7 +41,7 @@ from .exceptions import (
 from .logger import EmptyHandler, SensitiveFilter
 from .version import GLPIVersion
 
-__version__ = "1.4.5"
+__version__ = "1.5.0"
 
 __all__ = [
     # Clients

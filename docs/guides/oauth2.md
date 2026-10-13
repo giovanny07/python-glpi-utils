@@ -1,4 +1,4 @@
-!!! warning "GLPI 11+ only"
+!!! warning "GLPI 11 and 12 only"
     The OAuth2 high-level API (`/api.php`) was introduced in GLPI 11. If you are running GLPI 9.x or 10.x, use `GlpiAPI` or `AsyncGlpiAPI` instead.
 
 !!! warning "GLPI 11.0.6+ recommended"
@@ -9,7 +9,8 @@
 # OAuth2 (High-level API)
 
 GLPI 11 introduced a modern REST API at `/api.php` that uses OAuth2 for
-authentication. Use `GlpiOAuthClient` or `AsyncGlpiOAuthClient` for this.
+authentication (HL API 2.x). GLPI 12 adds HL API 3.0 and keeps 2.3.
+Use `GlpiOAuthClient` or `AsyncGlpiOAuthClient` for this.
 
 ---
 
@@ -22,7 +23,7 @@ authentication. Use `GlpiOAuthClient` or `AsyncGlpiOAuthClient` for this.
 5. Save
 
 !!! note "client_credentials grant"
-    The `client_credentials` grant is **not supported** for the `api` scope in GLPI 11.
+    The `client_credentials` grant is **not supported** for the `api` scope in GLPI 11 and 12.
     It only works for the `inventory` scope. Always use the `password` grant for
     ticket/asset API access.
 
@@ -143,9 +144,66 @@ api.item("Assets/Socket").get_all()
 
 ---
 
+## API versions (GLPI 12)
+
+Without `api_version`, requests go to `/api.php/...` and the server picks its
+newest HL API: 2.3 on GLPI 11, 3.0 on GLPI 12. Pin the version so a GLPI upgrade
+does not change the response schemas:
+
+```python
+api = GlpiOAuthClient(url="https://glpi.example.com", client_id="my-app",
+                      client_secret="my-secret", username="glpi", password="glpi",
+                      api_version="2.3")      # or GLPI_API_VERSION=2.3
+api.authenticate()
+api.get_version()        # GLPIVersion('12.0.0')
+api.get_api_versions()   # versions the server offers
+```
+
+| GLPI | Versions offered | Unversioned requests get |
+|------|------------------|--------------------------|
+| 11.0.x | 2.0, 2.1, 2.2, 2.3 | 2.3 |
+| 12.0.x | 2.3, 3.0 | 3.0 |
+
+`api_version` accepts `"2"`, `"2.3"`, `"3"`, `"3.0"` or `"v3.0"`. A major-only
+value lets the server choose the newest minor of that major. The token endpoint
+(`/api.php/token`) is never versioned.
+
+Changes in HL API 3.0 (GLPI 12), from the 12.0.0 OpenAPI documents:
+
+| Area | 2.3 | 3.0 |
+|------|-----|-----|
+| KB categories | `Knowledgebase/Category`, schema `KBCategory` | removed; articles have `parents` |
+| `KBArticle` | `categories` | `parents`, `is_favorite` |
+| `ITILCategory` | `knowbase_category` | `knowbase_article` |
+| Software licenses | `Assets/SoftwareLicense` (deprecated) | removed; use `Management/License` |
+| Team members | `TeamMember` | `UserTeamMember`, `GroupTeamMember`, `SupplierTeamMember` |
+| `OLA` | - | `group` added |
+| Login sessions | - | `Security/LoginSession/{My,All,{users_id}}`, `DELETE .../{login_session_uid}` |
+| Custom assets | `state` | `status` |
+
+---
+
+## Pagination and search
+
+The HL API paginates with `start` and `limit` (default limit **100**) and ignores
+the legacy `range` parameter. `get_all_pages()` and `iter_pages()` send
+`start`/`limit`, and `get_all(range="0-49")` is translated to `start=0&limit=50`.
+
+`search()` takes an RSQL `filter`:
+
+```python
+api.search("Ticket", filter="name=like=*srv*;status.id==1", limit=20, sort="date_mod:desc")
+```
+
+Operators: `==`, `!=`, `=lt=`, `=le=`, `=gt=`, `=ge=`, `=in=(a,b)`, `=out=`,
+`=like=`, `=ilike=`, `=isnull=`, `=notnull=`, and on GLPI 12 `=istruthy=` /
+`=isnottruthy=`. `;` is AND, `,` is OR.
+
+---
+
 ## HL API route map
 
-The GLPI 11 High-Level API groups resources into namespaces. The library maps
+The High-Level API groups resources into namespaces. The library maps
 the standard itemtype names automatically:
 
 | Alias / Itemtype | HL API path |
@@ -166,9 +224,12 @@ the standard itemtype names automatically:
 | `document` | `Management/Document` |
 | `category` | `Dropdowns/ITILCategory` |
 | `knowledgebase` | `Knowledgebase/Article` |
+| `SoftwareLicense` | `Management/License` |
 | `ITILFollowup` | `Timeline/Followup` *(sub-item only)* |
 | `TicketTask` | `Timeline/Task` *(sub-item only)* |
 | `ITILSolution` | `Timeline/Solution` *(sub-item only)* |
+| `TicketValidation` | `Timeline/Validation` *(sub-item only)* |
+| `Document` | `Timeline/Document` as a sub-item, `Management/Document` otherwise |
 
 For unmapped itemtypes (plugins, custom assets), pass the full path directly:
 `api.item("Assets/Custom/MyType")`.

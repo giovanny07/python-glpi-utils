@@ -11,7 +11,7 @@ It provides:
 
 - A **synchronous** client (`GlpiAPI`) powered by `requests`.
 - An **asynchronous** client (`AsyncGlpiAPI`) powered by `aiohttp`.
-- **OAuth2 clients** (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11+ high-level API (`/api.php`) with automatic token refresh.
+- **OAuth2 clients** (`GlpiOAuthClient` / `AsyncGlpiOAuthClient`) for the GLPI 11 and 12 high-level API (`/api.php`, HL API 2.x and 3.0) with automatic token refresh and optional version pinning.
 - **Auto-pagination** (`get_all_pages` / `iter_pages`) — fetch every item across all pages with one call.
 - Fluent **item-type accessors** (`api.ticket`, `api.computer`, `api.user`, …) so you write `api.ticket.get_all_pages()` instead of building raw HTTP calls.
 - A `SensitiveFilter` that masks passwords and tokens in debug logs automatically.
@@ -19,8 +19,8 @@ It provides:
 - A clean **exception hierarchy** so you can catch exactly what you need.
 
 > **Compatibility:**
-> - Legacy REST API (`/apirest.php`): **GLPI 9.1 and above** (tested on 10.x and 11.x)
-> - High-level OAuth2 API (`/api.php`): **GLPI 11.0.6+** recommended (11.0.5 has permission bugs)
+> - Legacy REST API (`/apirest.php`): **GLPI 9.1 and above** (tested on 10.x, 11.0.9 and 12.0.0)
+> - High-level OAuth2 API (`/api.php`): **GLPI 11.0.6+** recommended (11.0.5 has permission bugs); tested on 11.0.9 (HL API 2.3) and 12.0.0 (HL API 2.3 and 3.0)
 
 ---
 
@@ -212,13 +212,13 @@ async for page in api.ticket.iter_pages(page_size=100):
 
 ---
 
-## OAuth2 (High-level API — GLPI 11+ only)
+## OAuth2 (High-level API — GLPI 11 and 12)
 
 > **Requires GLPI 11.0.6+** for full support. GLPI 11.0.5 has a known bug where
 > `DELETE` and `Timeline` sub-items (`Followup`, `Task`, `Solution`) return
 > `ERROR_RIGHT_MISSING` regardless of profile permissions.
 
-For the GLPI 11 high-level API (`/api.php`), use the OAuth2 clients.
+For the GLPI 11/12 high-level API (`/api.php`), use the OAuth2 clients.
 
 **Setup in GLPI:** Setup → OAuth clients → Add → Grants: `Password` → Scopes: `api`
 
@@ -236,6 +236,7 @@ with GlpiOAuthClient(
     client_secret="my-secret",
     username="glpi",
     password="glpi",
+    api_version="2.3",   # pin the HL API version (see below)
 ) as api:
     api.authenticate()
 
@@ -283,7 +284,43 @@ methods as `GlpiAPI`. Itemtypes are mapped to their namespaced HL API paths
 automatically (`Ticket` → `Assistance/Ticket`, `Computer` → `Assets/Computer`, etc.).
 
 Environment variables: `GLPI_OAUTH_CLIENT_ID`, `GLPI_OAUTH_CLIENT_SECRET`,
-`GLPI_OAUTH_USERNAME`, `GLPI_OAUTH_PASSWORD`.
+`GLPI_OAUTH_USERNAME`, `GLPI_OAUTH_PASSWORD`, `GLPI_API_VERSION`.
+
+### GLPI 12 and HL API versions
+
+Without `api_version`, requests go to `/api.php/...` and the server answers with
+its **newest** HL API: 2.3 on GLPI 11, **3.0 on GLPI 12**. Upgrading GLPI from
+11 to 12 therefore changes the schemas your code receives unless you pin a version.
+
+| GLPI | Versions offered | Unversioned requests get |
+|------|------------------|--------------------------|
+| 11.0.x | 2.0, 2.1, 2.2, 2.3 | 2.3 |
+| 12.0.x | 2.3, 3.0 | 3.0 |
+
+Pin `api_version="2.3"` to keep code written for GLPI 11 working on both
+releases. Use `api_version="3.0"` only against GLPI 12. What 3.0 changes:
+
+- `Knowledgebase/Category` and the `KBCategory` schema are removed; KB articles
+  have `parents` instead of `categories`, and `ITILCategory.knowbase_category`
+  becomes `knowbase_article`.
+- `Assets/SoftwareLicense` is removed. The library already maps `SoftwareLicense`
+  to `Management/License`, which works on every version.
+- The `TeamMember` schema splits into `UserTeamMember`, `GroupTeamMember` and
+  `SupplierTeamMember`; `OLA` gains `group`.
+- New `Security/LoginSession` endpoints (list and revoke sessions).
+- Custom asset schemas rename `state` to `status`.
+
+```python
+api.get_version()        # GLPIVersion('12.0.0')  (GET /Setup/Config/core/version)
+api.get_api_versions()   # [{'api_version': '2', 'version': '2.3.0', ...}, {'api_version': '3', ...}]
+
+# RSQL search on any collection
+api.search("Ticket", filter="name=like=*srv*;status.id==1", limit=20)
+```
+
+The HL API paginates with `start`/`limit` (default limit 100) and ignores the
+legacy `range` parameter. `get_all_pages()` and `iter_pages()` send `start`/`limit`;
+`get_all(range="0-49")` is translated for you.
 
 ---
 
