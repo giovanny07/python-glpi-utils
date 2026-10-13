@@ -7,7 +7,20 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## [Unreleased]
+## [2.0.1] – 2026-10-13
+
+No behaviour changes from 2.0.0 (type annotations and import order only). This
+release updates the package metadata and the
+README shown on PyPI (supported GLPI versions, project status).
+
+### Changed
+
+- **Status and stability plan in the README.** The project stays Beta. It
+  becomes stable in 2.1.0 after four consecutive weeks of passing integration
+  runs (GLPI 10, 11, 12) with no public API change. From then on, the public
+  API is the names exported by `glpi_utils` and `glpi_utils.oauth` without a
+  leading underscore. Removing or changing one needs a new major version and is
+  preceded by at least one minor release with a `DeprecationWarning`.
 
 ### Removed
 

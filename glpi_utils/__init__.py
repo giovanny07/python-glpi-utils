@@ -44,7 +44,7 @@ from .logger import EmptyHandler, SensitiveFilter
 from .oauth import AsyncGlpiOAuthClient, GlpiOAuthClient
 from .version import GLPIVersion
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 
 __all__ = [
     # Clients

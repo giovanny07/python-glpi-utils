@@ -87,6 +87,8 @@ Guides and API reference: **https://giovanny07.github.io/python-glpi-utils/**
 
 Beta, actively maintained. Releases follow [semantic versioning](https://semver.org/) and every change is listed in the [CHANGELOG](https://github.com/giovanny07/python-glpi-utils/blob/main/CHANGELOG.md). The legacy clients are the most stable part. The OAuth2 clients follow GLPI's High-Level API, which is still evolving, and their behaviour changed in 1.4 and 1.5.
 
+The plan is to declare the library stable in 2.1.0. That needs four consecutive weeks of passing integration runs against GLPI 10, 11 and 12, counted from 2026-10-13, with no change to the public API in that time. From then on, the public API is every name exported by `glpi_utils` and `glpi_utils.oauth` that does not start with an underscore. Removing or changing any of those names will need a new major version, and will be preceded by at least one minor release in which the old form emits a `DeprecationWarning`.
+
 Unit tests run in CI on Python 3.9 to 3.13. Integration tests run both clients, sync and async, against official `glpi/glpi` containers: the latest patch of GLPI 10.0 (legacy API), 11.0 and 12.0 (legacy API and every High-Level API version the server offers), on every pull request and weekly. GLPI 9.x is not supported.
 
 ## Contributing
