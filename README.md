@@ -7,20 +7,24 @@
 
 Python client for [GLPI](https://glpi-project.org/) that handles both of its APIs for you: the legacy REST API and the OAuth2 High-Level API, sync or async, with pagination and token refresh built in.
 
-You write `api.ticket.get_all_pages()` instead of managing session tokens, `Content-Range` headers, OAuth2 expiry and the different URL layout of each API. MIT licensed, Python 3.9+, one runtime dependency (`requests`; `aiohttp` for async).
+You write `api.ticket.get_all_pages()` instead of managing session tokens, `Content-Range` headers, OAuth2 expiry and the different URL layout of each API. MIT licensed, Python 3.9+, depends on `requests` (plus `aiohttp` for the async clients).
+
+```bash
+pip install glpi-utils      # imported as glpi_utils
+```
 
 ```python
 from glpi_utils import GlpiAPI
 
 with GlpiAPI(url="https://glpi.example.com") as api:      # logs out on exit
     api.login(username="glpi", password="glpi")
-    print(api.version)                                     # 12.0.0
+    print(api.version)                                     # GLPI server version: 12.0.0
 
     ticket = api.ticket.create({"name": "srv-db01 unreachable", "content": "ICMP loss 100%"})
     api.ticket.add_sub_item(ticket["id"], "ITILFollowup", {"content": "On-call notified"})
 
     for t in api.ticket.get_all_pages():                   # every page, fetched for you
-        print(t["id"], t["name"])                          # 7 srv-db01 unreachable
+        print(t["id"], t["name"])                          # one line per ticket, e.g. 7 srv-db01 unreachable
 ```
 
 ## Why this one
@@ -30,28 +34,28 @@ The most used alternative on PyPI is [`glpi-api`](https://github.com/unistra/pyt
 | | python-glpi-utils | glpi-api |
 |---|---|---|
 | Legacy REST API (`/apirest.php`) | yes | yes |
-| High-Level API with OAuth2 (`/api.php`, GLPI 11 and 12) | yes, with HL API version pinning | no |
+| High-Level API with OAuth2 (`/api.php`, GLPI 11 and 12) | yes, with API version pinning | no |
 | Async client (`aiohttp`) | yes | no |
 | Fetch every page in one call | `get_all_pages()` / `iter_pages()` | no |
-| Search by field *name* instead of search-option ID | no | yes (`field_id`, `list_search_options`) |
+| Legacy search engine by field *name* (mapped to numeric search-option IDs) | no, pass the IDs | yes (`field_id`, `list_search_options`) |
 | `get_multiple_items`, `download_document` | no | yes |
 
-If you only call the legacy API synchronously and want to search by field names, `glpi-api` is the more established choice. Use this library for async code, the High-Level API, or GLPI 11/12 deployments where OAuth2 is the supported path.
+If you only call the legacy API synchronously and want to search it by field names, `glpi-api` is the more established choice. Use this library for async code or for the High-Level API of GLPI 11 and 12. Both libraries work with the legacy API on GLPI 12.
 
 ## Install
 
 ```bash
-pip install glpi-utils             # sync clients
-pip install "glpi-utils[async]"    # + AsyncGlpiAPI / AsyncGlpiOAuthClient
+pip install glpi-utils             # GlpiAPI, GlpiOAuthClient
+pip install "glpi-utils[async]"    # adds AsyncGlpiAPI, AsyncGlpiOAuthClient
 ```
 
-On the GLPI side, enable the API in *Setup → General → API*. For the legacy API, create an API client there if you need an App-Token. For the High-Level API, add an OAuth client in *Setup → OAuth clients* with the `Password` grant and the `api` scope.
+On the GLPI side, enable the API in *Setup → General → API*. For the legacy API, pass `app_token=` only if your GLPI API client defines one. For the High-Level API, add an OAuth client in *Setup → OAuth clients* with the `Password` grant and the `api` scope.
 
-## The four clients
+## Clients
 
-| Client | GLPI API | Auth | GLPI versions |
+| Sync / async | GLPI API | Auth | GLPI versions |
 |---|---|---|---|
-| `GlpiAPI` / `AsyncGlpiAPI` | legacy `/apirest.php` | username + password, or personal `user_token`; optional App-Token | 9.1 and later |
+| `GlpiAPI` / `AsyncGlpiAPI` | legacy `/apirest.php` | username + password, or personal `user_token` | 9.1 and later |
 | `GlpiOAuthClient` / `AsyncGlpiOAuthClient` | High-Level `/api.php` | OAuth2 password grant, token refreshed automatically | 11.0.6 and later, 12 |
 
 ```python
@@ -63,7 +67,7 @@ with GlpiOAuthClient(url="https://glpi.example.com", client_id="...", client_sec
     api.search("Ticket", filter="status.id==1;name=like=*srv*", limit=20)
 ```
 
-**Pin `api_version` on the OAuth2 clients.** Without it, GLPI 12 answers with High-Level API 3.0, whose schemas differ from 2.3 on GLPI 11. `api_version="2.3"` works on both. See the [OAuth2 guide](https://giovanny07.github.io/python-glpi-utils/guides/oauth2/) for the differences.
+**Pin `api_version` on the OAuth2 clients.** If you leave it out, the server picks its newest High-Level API version: 2.3 on GLPI 11, 3.0 on GLPI 12. The two return different schemas. Pinning `"2.3"` keeps code written for GLPI 11 working on 12 (12.0.0 only adds a few fields to 2.3 and drops the `Plug` dropdowns); you miss the endpoints added in 3.0, such as login-session management. `filter` takes [RSQL](https://github.com/jirutka/rsql-parser) expressions over field names. See the [OAuth2 guide](https://giovanny07.github.io/python-glpi-utils/guides/oauth2/) for the differences.
 
 All clients share the same accessors (`api.ticket`, `api.computer`, `api.user`, … or `api.item("AnyItemtype")`), CRUD methods, sub-items, typed exceptions (`GlpiAuthError`, `GlpiNotFoundError`, `GlpiPermissionError`…) and debug logging with passwords and tokens masked. Settings can come from environment variables (`GLPI_URL`, `GLPI_USER`, `GLPI_USER_TOKEN`, `GLPI_OAUTH_CLIENT_ID`, `GLPI_API_VERSION`…).
 
