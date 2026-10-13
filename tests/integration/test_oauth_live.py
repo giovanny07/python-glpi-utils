@@ -6,8 +6,6 @@ from __future__ import annotations
 
 import os
 
-import pytest
-
 from glpi_utils.oauth import AsyncGlpiOAuthClient, GlpiOAuthClient
 
 from .conftest import PASSWORD, URL, USER

@@ -13,6 +13,7 @@ Usage:
 """
 
 import os
+
 from glpi_utils import GlpiAPI, GlpiNotFoundError, GlpiPermissionError
 
 URL       = os.environ.get("GLPI_URL",        "https://glpi.example.com")

@@ -76,8 +76,10 @@ def _hl_versions() -> list:
     return []
 
 
-@pytest.fixture(scope="session", params=_hl_versions() or [pytest.param(None, marks=pytest.mark.skip(reason="High-Level API needs GLPI 11+"))],
-                ids=lambda v: f"hlapi-{v or 'default'}")
+_NO_HL_API = [pytest.param(None, marks=pytest.mark.skip(reason="High-Level API needs GLPI 11+"))]
+
+
+@pytest.fixture(scope="session", params=_hl_versions() or _NO_HL_API, ids=lambda v: f"hlapi-{v or 'default'}")
 def oauth(request):
     api = GlpiOAuthClient(
         url=URL,

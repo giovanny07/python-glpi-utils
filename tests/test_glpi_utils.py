@@ -17,7 +17,6 @@ from unittest.mock import MagicMock, patch
 from glpi_utils import GlpiAPI, GlpiAPIError, GlpiAuthError, GlpiNotFoundError
 from glpi_utils.version import GLPIVersion
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────

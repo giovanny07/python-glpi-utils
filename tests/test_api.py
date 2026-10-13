@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import os
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 import requests
 
@@ -23,7 +23,6 @@ from glpi_utils.exceptions import GlpiConnectionError, GlpiPermissionError
 from glpi_utils.version import GLPIVersion
 
 from .common import make_api, mock_response
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Initialisation

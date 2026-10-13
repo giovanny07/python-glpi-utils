@@ -19,7 +19,8 @@ from __future__ import annotations
 import logging
 import os
 from base64 import b64encode
-from typing import Any, Iterator, Optional
+from collections.abc import Iterator
+from typing import Any, Optional
 
 import requests
 from requests import Response, Session
@@ -47,7 +48,7 @@ log.addFilter(SensitiveFilter())
 #: is supplied.  GLPI's own default is also 50 items per page.
 DEFAULT_PAGE_SIZE = 50
 
-_ITEMTYPE_MAP: dict = {
+_ITEMTYPE_MAP: dict[str, Any] = {
     "ticket":           "Ticket",
     "computer":         "Computer",
     "monitor":          "Monitor",
@@ -112,14 +113,14 @@ def _raise_for_glpi_error(response: Response) -> None:
     raise GlpiAPIError(message, status_code=status, error_code=error_code)
 
 
-def _flatten_search_params(params: dict) -> dict:
+def _flatten_search_params(params: dict[str, Any]) -> dict[str, Any]:
     """Flatten nested search parameters into PHP-style bracket notation.
 
     GLPI expects ``criteria[0][field]=126&criteria[0][searchtype]=equals``
     rather than Python list/dict structures that HTTP clients cannot
     serialize correctly.
     """
-    flat: dict = {}
+    flat: dict[str, Any] = {}
 
     for key in ("criteria", "metacriteria"):
         items = params.pop(key, None)
@@ -138,7 +139,7 @@ def _flatten_search_params(params: dict) -> dict:
     return flat
 
 
-def _boolify_params(params: dict) -> dict:
+def _boolify_params(params: dict[str, Any]) -> dict[str, Any]:
     """Convert Python ``bool`` values to GLPI-expected ``0``/``1`` integers."""
     return {k: int(v) if isinstance(v, bool) else v for k, v in params.items()}
 
@@ -254,13 +255,13 @@ class GlpiAPI:
         self._session_token: Optional[str] = None
         self._http = Session()
         self._version: Optional[GLPIVersion] = None
-        self._proxies: dict = {}
+        self._proxies: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Context-manager support
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> "GlpiAPI":
+    def __enter__(self) -> GlpiAPI:
         return self
 
     def __exit__(self, *_: Any) -> None:
@@ -305,8 +306,8 @@ class GlpiAPI:
     def _base_url(self) -> str:
         return f"{self._url}/apirest.php"
 
-    def _default_headers(self) -> dict:
-        headers: dict = {"Content-Type": "application/json"}
+    def _default_headers(self) -> dict[str, Any]:
+        headers: dict[str, Any] = {"Content-Type": "application/json"}
         if self._app_token:
             headers["App-Token"] = self._app_token
         if self._session_token:
@@ -318,8 +319,8 @@ class GlpiAPI:
         method: str,
         path: str,
         *,
-        headers: Optional[dict] = None,
-        params: Optional[dict] = None,
+        headers: Optional[dict[str, Any]] = None,
+        params: Optional[dict[str, Any]] = None,
         json: Any = None,
     ) -> Any:
         url = f"{self._base_url}/{path.lstrip('/')}"
@@ -354,9 +355,9 @@ class GlpiAPI:
         method: str,
         path: str,
         *,
-        params: Optional[dict] = None,
+        params: Optional[dict[str, Any]] = None,
         json: Any = None,
-    ) -> tuple:
+    ) -> tuple[Any, Any]:
         """Like ``_request`` but returns ``(body, response_headers)``."""
         url = f"{self._base_url}/{path.lstrip('/')}"
         merged = self._default_headers()
@@ -412,7 +413,7 @@ class GlpiAPI:
         password   = password   or os.environ.get("GLPI_PASSWORD")
         user_token = user_token or os.environ.get("GLPI_USER_TOKEN")
 
-        auth_headers: dict = {}
+        auth_headers: dict[str, Any] = {}
 
         if user_token:
             auth_headers["Authorization"] = f"user_token {user_token}"
@@ -474,11 +475,11 @@ class GlpiAPI:
     # Session utilities
     # ------------------------------------------------------------------
 
-    def get_my_profiles(self) -> list:
+    def get_my_profiles(self) -> list[Any]:
         """Return profiles available to the current user."""
         return self._request("GET", "getMyProfiles")["myprofiles"]
 
-    def get_active_profile(self) -> dict:
+    def get_active_profile(self) -> dict[str, Any]:
         """Return the currently active profile."""
         return self._request("GET", "getActiveProfile")["active_profile"]
 
@@ -486,13 +487,13 @@ class GlpiAPI:
         """Switch to a different profile."""
         self._request("POST", "changeActiveProfile", json={"profiles_id": profile_id})
 
-    def get_my_entities(self, is_recursive: bool = False) -> list:
+    def get_my_entities(self, is_recursive: bool = False) -> list[Any]:
         """Return entities accessible to the current user."""
         return self._request(
             "GET", "getMyEntities", params={"is_recursive": int(is_recursive)}
         )["myentities"]
 
-    def get_active_entities(self) -> dict:
+    def get_active_entities(self) -> dict[str, Any]:
         """Return the current active entity context."""
         return self._request("GET", "getActiveEntities")["active_entity"]
 
@@ -504,11 +505,11 @@ class GlpiAPI:
             json={"entities_id": entity_id, "is_recursive": int(is_recursive)},
         )
 
-    def get_full_session(self) -> dict:
+    def get_full_session(self) -> dict[str, Any]:
         """Return the full PHP session data."""
         return self._request("GET", "getFullSession")["session"]
 
-    def get_glpi_config(self) -> dict:
+    def get_glpi_config(self) -> dict[str, Any]:
         """Return global GLPI configuration."""
         return self._request("GET", "getGlpiConfig")
 
@@ -516,7 +517,7 @@ class GlpiAPI:
     # Item CRUD
     # ------------------------------------------------------------------
 
-    def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict:
+    def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict[str, Any]:
         """Return a single item by ID.
 
         Parameters
@@ -530,7 +531,7 @@ class GlpiAPI:
         params = _boolify_params(kwargs)
         return self._request("GET", f"{itemtype}/{item_id}", params=params)
 
-    def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
+    def get_all_items(self, itemtype: str, **kwargs: Any) -> list[Any]:
         """Return a **single page** of items.
 
         Use :meth:`get_all_pages` to retrieve every item across all pages
@@ -553,7 +554,7 @@ class GlpiAPI:
         itemtype: str,
         page_size: int = DEFAULT_PAGE_SIZE,
         **kwargs: Any,
-    ) -> list:
+    ) -> list[Any]:
         """Fetch **all** items of *itemtype* by iterating pages automatically.
 
         GLPI paginates results via a ``range`` query parameter (``0-49``,
@@ -595,7 +596,7 @@ class GlpiAPI:
             computers = api.computer.get_all_pages(expand_dropdowns=True)
         """
         params = _boolify_params(kwargs)
-        results: list = []
+        results: list[Any] = []
         start = 0
 
         while True:
@@ -638,7 +639,7 @@ class GlpiAPI:
         itemtype: str,
         page_size: int = DEFAULT_PAGE_SIZE,
         **kwargs: Any,
-    ) -> Iterator[list]:
+    ) -> Iterator[list[Any]]:
         """Yield one page of items at a time.
 
         Memory-efficient alternative to :meth:`get_all_pages` for very large
@@ -694,7 +695,7 @@ class GlpiAPI:
 
             start += page_size
 
-    def search(self, itemtype: str, **kwargs: Any) -> dict:
+    def search(self, itemtype: str, **kwargs: Any) -> dict[str, Any]:
         """Run the GLPI search engine.
 
         Parameters
@@ -710,13 +711,13 @@ class GlpiAPI:
 
     def create_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> Any:
         """Create one or several items."""
-        payload: dict = {"input": input_data}
+        payload: dict[str, Any] = {"input": input_data}
         payload.update(kwargs)
         return self._request("POST", itemtype, json=payload)
 
-    def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
+    def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list[Any]:
         """Update one or several items. Each dict must contain an ``"id"`` key."""
-        payload: dict = {"input": input_data}
+        payload: dict[str, Any] = {"input": input_data}
         payload.update(kwargs)
         return self._request("PUT", itemtype, json=payload)
 
@@ -726,7 +727,7 @@ class GlpiAPI:
         input_data: Any,
         force_purge: bool = False,
         history: bool = True,
-    ) -> list:
+    ) -> list[Any]:
         """Delete one or several items.
 
         Parameters
@@ -736,7 +737,7 @@ class GlpiAPI:
         history : bool
             Whether to log the deletion in history.
         """
-        payload: dict = {
+        payload: dict[str, Any] = {
             "input": input_data,
             "force_purge": int(force_purge),
             "history": int(history),
@@ -753,7 +754,7 @@ class GlpiAPI:
         item_id: int,
         sub_itemtype: str,
         **kwargs: Any,
-    ) -> list:
+    ) -> list[Any]:
         """Return sub-items (e.g. followups, tasks, solutions of a ticket)."""
         params = _boolify_params(kwargs)
         return self._request(
@@ -765,15 +766,15 @@ class GlpiAPI:
         itemtype: str,
         item_id: int,
         sub_itemtype: str,
-        input_data: dict,
+        input_data: dict[str, Any],
         **kwargs: Any,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Add a sub-item to a parent resource.
 
         The parent link (``itemtype``/``items_id`` or ``tickets_id``...) is
         added to *input_data* when missing, since GLPI does not infer it.
         """
-        payload: dict = {"input": _with_parent_link(itemtype, item_id, sub_itemtype, input_data)}
+        payload: dict[str, Any] = {"input": _with_parent_link(itemtype, item_id, sub_itemtype, input_data)}
         payload.update(kwargs)
         return self._request(
             "POST", f"{itemtype}/{item_id}/{sub_itemtype}", json=payload
@@ -783,11 +784,11 @@ class GlpiAPI:
     # Misc
     # ------------------------------------------------------------------
 
-    def list_item_types(self) -> list:
+    def list_item_types(self) -> list[Any]:
         """Return all available item-type names in this GLPI instance."""
         return self._request("GET", "listItemtypes")
 
-    def upload_document(self, file_path: str, document_name: Optional[str] = None) -> dict:
+    def upload_document(self, file_path: str, document_name: Optional[str] = None) -> dict[str, Any]:
         """Upload a file as a GLPI Document.
 
         Parameters
@@ -807,12 +808,13 @@ class GlpiAPI:
         headers = {k: v for k, v in self._default_headers().items() if k != "Content-Type"}
 
         with fp.open("rb") as fh:
+            files: dict[str, Any] = {
+                "uploadManifest": (None, manifest, "application/json"),
+                "filename[0]": (fp.name, fh),
+            }
             response = self._http.post(
                 url, headers=headers,
-                files={
-                    "uploadManifest": (None, manifest, "application/json"),
-                    "filename[0]": (fp.name, fh),
-                },
+                files=files,
                 verify=self._verify_ssl,
                 timeout=self._timeout,
             )
@@ -820,4 +822,3 @@ class GlpiAPI:
         return response.json()
 
 
-from .exceptions import GlpiError  # noqa: E402

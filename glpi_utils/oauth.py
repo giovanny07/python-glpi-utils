@@ -66,20 +66,24 @@ import logging
 import os
 import re
 import time
-from typing import Any, AsyncIterator, Iterator, Optional
+from collections.abc import AsyncIterator, Iterator
+from typing import Any, Optional
 
 import requests
 from requests import Session
 
 from ._resource import AsyncItemProxy, ItemProxy
-from .api import DEFAULT_PAGE_SIZE, _ITEMTYPE_MAP, _boolify_params, _parse_content_range
+from .api import _ITEMTYPE_MAP, DEFAULT_PAGE_SIZE, _boolify_params, _parse_content_range
+from .exceptions import GlpiAPIError, GlpiAuthError, GlpiConnectionError, GlpiNotFoundError, GlpiPermissionError
+from .logger import EmptyHandler, SensitiveFilter
+from .version import GLPIVersion
 
 # ──────────────────────────────────────────────────────────────────────────────
 # High-Level API route map (namespaced paths under /api.php), valid for
 # HL API 2.3 (GLPI 11/12) and 3.0 (GLPI 12) unless noted.
 # Keys match the aliases in _ITEMTYPE_MAP; values are the actual API paths.
 # ──────────────────────────────────────────────────────────────────────────────
-_HLAPI_ROUTE_MAP: dict = {
+_HLAPI_ROUTE_MAP: dict[str, Any] = {
     # Assistance
     "Ticket":              "Assistance/Ticket",
     "Problem":             "Assistance/Problem",
@@ -146,7 +150,7 @@ _HLAPI_ROUTE_MAP: dict = {
 
 # Sub-items of an ITIL object (Ticket, Change, Problem) live under
 # ``/Assistance/{itemtype}/{id}/Timeline/...``.
-_HLAPI_SUBITEM_MAP: dict = {
+_HLAPI_SUBITEM_MAP: dict[str, Any] = {
     "ITILFollowup":        "Timeline/Followup",
     "ITILSolution":        "Timeline/Solution",
     "TicketTask":          "Timeline/Task",
@@ -192,7 +196,7 @@ def _normalize_api_version(version: Any) -> Optional[str]:
     return f"v{number}"
 
 
-def _page_params(params: dict, page_size: int) -> dict:
+def _page_params(params: dict[str, Any], page_size: int) -> dict[str, Any]:
     """Return a copy of *params* with HL API ``start``/``limit`` pagination.
 
     The HL API ignores the legacy ``range`` parameter and falls back to its
@@ -206,9 +210,6 @@ def _page_params(params: dict, page_size: int) -> dict:
     out.setdefault("start", 0)
     out.setdefault("limit", page_size)
     return out
-from .exceptions import GlpiAPIError, GlpiAuthError, GlpiConnectionError, GlpiNotFoundError, GlpiPermissionError
-from .logger import EmptyHandler, SensitiveFilter
-from .version import GLPIVersion
 
 log = logging.getLogger(__name__)
 log.addHandler(EmptyHandler())
@@ -327,13 +328,13 @@ class GlpiOAuthClient:
         self._token = _TokenStore()
         self._http = Session()
         self._version: Optional[GLPIVersion] = None
-        self._proxies: dict = {}
+        self._proxies: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # Context manager
     # ------------------------------------------------------------------
 
-    def __enter__(self) -> "GlpiOAuthClient":
+    def __enter__(self) -> GlpiOAuthClient:
         return self
 
     def __exit__(self, *_: Any) -> None:
@@ -397,7 +398,7 @@ class GlpiOAuthClient:
         """Pinned HL API version prefix (e.g. ``"v3.0"``), or ``None``."""
         return self._api_version
 
-    def _auth_headers(self, with_content_type: bool = False) -> dict:
+    def _auth_headers(self, with_content_type: bool = False) -> dict[str, Any]:
         token = self._token.access_token
         if not token:
             raise GlpiAuthError("Not authenticated. Call authenticate() first.")
@@ -503,7 +504,7 @@ class GlpiOAuthClient:
         method: str,
         path: str,
         *,
-        params: Optional[dict] = None,
+        params: Optional[dict[str, Any]] = None,
         json: Any = None,
     ) -> Any:
         body, _ = self._request_with_headers(method, path, params=params, json=json)
@@ -514,9 +515,9 @@ class GlpiOAuthClient:
         method: str,
         path: str,
         *,
-        params: Optional[dict] = None,
+        params: Optional[dict[str, Any]] = None,
         json: Any = None,
-    ) -> tuple:
+    ) -> tuple[Any, Any]:
         self._ensure_token()
         url = f"{self._api_url}/{path.lstrip('/')}"
         log.debug("%s %s params=%s", method.upper(), url, params)
@@ -568,7 +569,7 @@ class GlpiOAuthClient:
         self._version = GLPIVersion(raw or "0.0.0")
         return self._version
 
-    def get_api_versions(self) -> list:
+    def get_api_versions(self) -> list[Any]:
         """Return the API versions the server offers (``GET /api.php/``).
 
         Each entry has ``api_version`` (major), ``version`` and ``endpoint``.
@@ -592,12 +593,12 @@ class GlpiOAuthClient:
     # Item CRUD
     # ------------------------------------------------------------------
 
-    def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict:
+    def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict[str, Any]:
         """Return a single item by ID."""
         params = _boolify_params(kwargs)
         return self._request("GET", f"{_hl_route(itemtype)}/{item_id}", params=params)
 
-    def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
+    def get_all_items(self, itemtype: str, **kwargs: Any) -> list[Any]:
         """Return a single page of items (``start``/``limit``; ``range="a-b"`` is translated)."""
         params = _page_params(_boolify_params(kwargs), DEFAULT_PAGE_SIZE)
         return self._request("GET", _hl_route(itemtype), params=params)
@@ -607,7 +608,7 @@ class GlpiOAuthClient:
         itemtype: str,
         page_size: int = DEFAULT_PAGE_SIZE,
         **kwargs: Any,
-    ) -> list:
+    ) -> list[Any]:
         """Fetch all items across all pages automatically."""
         return list(item for page in self.iter_pages(itemtype, page_size=page_size, **kwargs) for item in page)
 
@@ -616,7 +617,7 @@ class GlpiOAuthClient:
         itemtype: str,
         page_size: int = DEFAULT_PAGE_SIZE,
         **kwargs: Any,
-    ) -> Iterator[list]:
+    ) -> Iterator[list[Any]]:
         """Yield one page of items at a time."""
         base = _boolify_params(kwargs)
         base.pop("range", None)
@@ -641,7 +642,7 @@ class GlpiOAuthClient:
 
             start += page_size
 
-    def search(self, itemtype: str, filter: Optional[str] = None, **kwargs: Any) -> list:
+    def search(self, itemtype: str, filter: Optional[str] = None, **kwargs: Any) -> list[Any]:
         """Search a collection with an RSQL *filter*, e.g. ``"name=like=*srv*;status.id==1"``.
 
         Extra kwargs (``start``, ``limit``, ``sort``) are passed as query parameters.
@@ -661,7 +662,7 @@ class GlpiOAuthClient:
             body = input_data
         return self._request("POST", _hl_route(itemtype), json=body)
 
-    def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
+    def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list[Any]:
         """Update one or several items."""
         # HL API v2: PUT /{route}/{id} with fields in body (no wrapper)
         if isinstance(input_data, dict) and "id" in input_data:
@@ -670,7 +671,7 @@ class GlpiOAuthClient:
             body.update(kwargs)
             return self._request("PATCH", f"{_hl_route(itemtype)}/{item_id}", json=body)
         # Fallback for list input (bulk) - not natively supported in HL API
-        payload: dict = {"input": input_data}
+        payload: dict[str, Any] = {"input": input_data}
         payload.update(kwargs)
         return self._request("PATCH", _hl_route(itemtype), json=payload)
 
@@ -680,25 +681,25 @@ class GlpiOAuthClient:
         input_data: Any,
         force_purge: bool = False,
         history: bool = True,
-    ) -> list:
+    ) -> list[Any]:
         """Delete one or several items."""
         # HL API v2: DELETE /{route}/{id}
         if isinstance(input_data, dict) and "id" in input_data:
             item_id = input_data["id"]
             return self._request("DELETE", f"{_hl_route(itemtype)}/{item_id}")
-        payload: dict = {"input": input_data}
+        payload: dict[str, Any] = {"input": input_data}
         return self._request("DELETE", _hl_route(itemtype), json=payload)
 
     def get_sub_items(
         self, itemtype: str, item_id: int, sub_itemtype: str, **kwargs: Any
-    ) -> list:
+    ) -> list[Any]:
         """Return sub-items of a parent item."""
         params = _boolify_params(kwargs)
         return self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_subitem_route(sub_itemtype)}", params=params)
 
     def add_sub_item(
-        self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict, **kwargs: Any
-    ) -> dict:
+        self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
         """Add a sub-item to a parent resource."""
         # HL API v2: body is the object directly, no {"input":...} wrapper
         body = dict(input_data)
@@ -773,9 +774,9 @@ class AsyncGlpiOAuthClient:
         self._token = _TokenStore()
         self._http: Any = None
         self._version: Optional[GLPIVersion] = None
-        self._proxies: dict = {}
+        self._proxies: dict[str, Any] = {}
 
-    async def __aenter__(self) -> "AsyncGlpiOAuthClient":
+    async def __aenter__(self) -> AsyncGlpiOAuthClient:
         return self
 
     async def __aexit__(self, *_: Any) -> None:
@@ -845,7 +846,7 @@ class AsyncGlpiOAuthClient:
             self._http = aiohttp.ClientSession(connector=connector)
         return self._http
 
-    def _auth_headers(self, with_content_type: bool = False) -> dict:
+    def _auth_headers(self, with_content_type: bool = False) -> dict[str, Any]:
         if not self._token.access_token:
             raise GlpiAuthError("Not authenticated. Call await authenticate() first.")
         headers = {"Authorization": f"Bearer {self._token.access_token}"}
@@ -925,13 +926,15 @@ class AsyncGlpiOAuthClient:
     # Internal HTTP helpers
     # ------------------------------------------------------------------
 
-    async def _request(self, method: str, path: str, *, params: Optional[dict] = None, json: Any = None) -> Any:
+    async def _request(
+        self, method: str, path: str, *, params: Optional[dict[str, Any]] = None, json: Any = None
+    ) -> Any:
         body, _ = await self._request_with_headers(method, path, params=params, json=json)
         return body
 
     async def _request_with_headers(
-        self, method: str, path: str, *, params: Optional[dict] = None, json: Any = None
-    ) -> tuple:
+        self, method: str, path: str, *, params: Optional[dict[str, Any]] = None, json: Any = None
+    ) -> tuple[Any, Any]:
         import aiohttp
 
         await self._ensure_token()
@@ -964,22 +967,22 @@ class AsyncGlpiOAuthClient:
     # CRUD + pagination  (mirrors GlpiOAuthClient)
     # ------------------------------------------------------------------
 
-    async def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict:
+    async def get_item(self, itemtype: str, item_id: int, **kwargs: Any) -> dict[str, Any]:
         return await self._request("GET", f"{_hl_route(itemtype)}/{item_id}", params=_boolify_params(kwargs))
 
-    async def get_all_items(self, itemtype: str, **kwargs: Any) -> list:
+    async def get_all_items(self, itemtype: str, **kwargs: Any) -> list[Any]:
         params = _page_params(_boolify_params(kwargs), DEFAULT_PAGE_SIZE)
         return await self._request("GET", _hl_route(itemtype), params=params)
 
-    async def get_all_pages(self, itemtype: str, page_size: int = DEFAULT_PAGE_SIZE, **kwargs: Any) -> list:
-        results: list = []
+    async def get_all_pages(self, itemtype: str, page_size: int = DEFAULT_PAGE_SIZE, **kwargs: Any) -> list[Any]:
+        results: list[Any] = []
         async for page in self.iter_pages(itemtype, page_size=page_size, **kwargs):
             results.extend(page)
         return results
 
     async def iter_pages(
         self, itemtype: str, page_size: int = DEFAULT_PAGE_SIZE, **kwargs: Any
-    ) -> AsyncIterator[list]:
+    ) -> AsyncIterator[list[Any]]:
         base = _boolify_params(kwargs)
         base.pop("range", None)
         start = 0
@@ -998,7 +1001,7 @@ class AsyncGlpiOAuthClient:
                 return
             start += page_size
 
-    async def search(self, itemtype: str, filter: Optional[str] = None, **kwargs: Any) -> list:
+    async def search(self, itemtype: str, filter: Optional[str] = None, **kwargs: Any) -> list[Any]:
         params = _boolify_params(kwargs)
         if filter:
             params["filter"] = filter
@@ -1012,29 +1015,35 @@ class AsyncGlpiOAuthClient:
             body = input_data
         return await self._request("POST", _hl_route(itemtype), json=body)
 
-    async def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list:
+    async def update_item(self, itemtype: str, input_data: Any, **kwargs: Any) -> list[Any]:
         if isinstance(input_data, dict) and "id" in input_data:
             item_id = input_data["id"]
             body = {k: v for k, v in input_data.items() if k != "id"}
             body.update(kwargs)
             return await self._request("PATCH", f"{_hl_route(itemtype)}/{item_id}", json=body)
-        payload: dict = {"input": input_data}
+        payload: dict[str, Any] = {"input": input_data}
         payload.update(kwargs)
         return await self._request("PATCH", _hl_route(itemtype), json=payload)
 
-    async def delete_item(self, itemtype: str, input_data: Any, force_purge: bool = False, history: bool = True) -> list:
+    async def delete_item(
+        self, itemtype: str, input_data: Any, force_purge: bool = False, history: bool = True
+    ) -> list[Any]:
         if isinstance(input_data, dict) and "id" in input_data:
             item_id = input_data["id"]
             return await self._request("DELETE", f"{_hl_route(itemtype)}/{item_id}")
         return await self._request("DELETE", _hl_route(itemtype), json={"input": input_data})
 
-    async def get_sub_items(self, itemtype: str, item_id: int, sub_itemtype: str, **kwargs: Any) -> list:
-        return await self._request("GET", f"{_hl_route(itemtype)}/{item_id}/{_hl_subitem_route(sub_itemtype)}", params=_boolify_params(kwargs))
+    async def get_sub_items(self, itemtype: str, item_id: int, sub_itemtype: str, **kwargs: Any) -> list[Any]:
+        path = f"{_hl_route(itemtype)}/{item_id}/{_hl_subitem_route(sub_itemtype)}"
+        return await self._request("GET", path, params=_boolify_params(kwargs))
 
-    async def add_sub_item(self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict, **kwargs: Any) -> dict:
+    async def add_sub_item(
+        self, itemtype: str, item_id: int, sub_itemtype: str, input_data: dict[str, Any], **kwargs: Any
+    ) -> dict[str, Any]:
         body = dict(input_data)
         body.update(kwargs)
-        return await self._request("POST", f"{_hl_route(itemtype)}/{item_id}/{_hl_subitem_route(sub_itemtype)}", json=body)
+        path = f"{_hl_route(itemtype)}/{item_id}/{_hl_subitem_route(sub_itemtype)}"
+        return await self._request("POST", path, json=body)
 
     @property
     def version(self) -> Optional[GLPIVersion]:
@@ -1047,7 +1056,7 @@ class AsyncGlpiOAuthClient:
         self._version = GLPIVersion(raw or "0.0.0")
         return self._version
 
-    async def get_api_versions(self) -> list:
+    async def get_api_versions(self) -> list[Any]:
         """Return the API versions the server offers (``GET /api.php/``)."""
         import aiohttp
 

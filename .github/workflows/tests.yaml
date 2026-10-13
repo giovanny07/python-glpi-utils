@@ -36,3 +36,22 @@ jobs:
         with:
           files: coverage.xml
         continue-on-error: true
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Pinned so a new ruff/mypy release cannot fail CI on unchanged code.
+      - name: Install dependencies
+        run: pip install -e ".[async]" ruff==0.17.0 mypy==2.4.0
+
+      - name: ruff
+        run: ruff check .
+
+      - name: mypy
+        run: mypy glpi_utils

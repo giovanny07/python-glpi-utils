@@ -195,13 +195,11 @@ class TestEmptyHandler(unittest.TestCase):
 
     def test_attached_to_api_logger(self):
         # EmptyHandler is attached to glpi_utils.api (and glpi_utils.aio)
-        import glpi_utils.api  # ensure module is imported
         logger = logging.getLogger("glpi_utils.api")
         handler_types = [type(h) for h in logger.handlers]
         self.assertIn(EmptyHandler, handler_types)
 
     def test_sensitive_filter_attached_to_api_logger(self):
-        import glpi_utils.api
         logger = logging.getLogger("glpi_utils.api")
         filter_types = [type(f) for f in logger.filters]
         self.assertIn(SensitiveFilter, filter_types)

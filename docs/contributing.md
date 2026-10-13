@@ -39,18 +39,22 @@ on Python 3.9 to 3.13 automatically.
 
 ## Code style
 
-The project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting:
+The project lints with [Ruff](https://docs.astral.sh/ruff/) (rules in `ruff.toml`) and
+type-checks with [mypy](https://mypy.readthedocs.io/) in strict mode (settings in
+`setup.cfg`). CI runs both on every pull request:
 
 ```bash
-ruff check glpi_utils/
-ruff format glpi_utils/
+ruff check .
+mypy glpi_utils
 ```
 
-Type hints are checked with [mypy](https://mypy.readthedocs.io/):
+Annotations keep `typing.Optional` rather than `X | None`, because the library
+supports Python 3.9.
 
-```bash
-mypy glpi_utils/
-```
+Integration tests against a real GLPI live in `tests/integration` and are skipped
+unless `GLPI_IT_URL` is set. `.github/scripts/glpi_it_setup.sh` prepares a
+`glpi/glpi` container and prints the variables they need; CI runs them on
+GLPI 10.0, 11.0 and 12.0.
 
 ---
 

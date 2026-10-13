@@ -30,9 +30,8 @@ Utilities
 * :class:`EmptyHandler`        – Silent handler (library default)
 """
 
-from .api import GlpiAPI
 from .aio import AsyncGlpiAPI
-from .oauth import AsyncGlpiOAuthClient, GlpiOAuthClient
+from .api import GlpiAPI
 from .exceptions import (
     GlpiAPIError,
     GlpiAuthError,
@@ -42,6 +41,7 @@ from .exceptions import (
     GlpiPermissionError,
 )
 from .logger import EmptyHandler, SensitiveFilter
+from .oauth import AsyncGlpiOAuthClient, GlpiOAuthClient
 from .version import GLPIVersion
 
 __version__ = "2.0.0"
