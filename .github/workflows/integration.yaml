@@ -1,0 +1,64 @@
+name: Integration
+
+# Runs the client against real GLPI servers (official glpi/glpi images).
+# Floating tags pick up each branch's latest patch release; the weekly run
+# catches GLPI releases that break the client before users do.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  glpi:
+    name: GLPI ${{ matrix.glpi }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        glpi: ["10.0", "11.0", "12.0"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: pip install -e ".[async,dev]"
+
+      - name: Start GLPI ${{ matrix.glpi }}
+        run: |
+          docker network create glpi
+          docker run -d --name db --network glpi \
+            -e MARIADB_ROOT_PASSWORD=root -e MARIADB_DATABASE=glpi \
+            -e MARIADB_USER=glpi -e MARIADB_PASSWORD=glpi \
+            mariadb:11.4
+          docker run -d --name glpi --network glpi -p 8080:80 \
+            -e GLPI_DB_HOST=db -e GLPI_DB_PORT=3306 -e GLPI_DB_NAME=glpi \
+            -e GLPI_DB_USER=glpi -e GLPI_DB_PASSWORD=glpi \
+            glpi/glpi:${{ matrix.glpi }}
+
+      - name: Prepare GLPI (APIs, OAuth client)
+        run: |
+          .github/scripts/glpi_it_setup.sh glpi db http://localhost:8080 > it.env
+          grep -v SECRET it.env
+
+      - name: Integration tests
+        run: |
+          source it.env
+          echo "Testing against GLPI $GLPI_IT_VERSION"
+          pytest tests/integration -v
+
+      - name: GLPI logs on failure
+        if: failure()
+        run: |
+          docker logs glpi 2>&1 | tail -50
+          docker exec glpi sh -c 'tail -50 /var/glpi/logs/php-errors.log' || true
