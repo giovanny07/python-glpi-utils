@@ -10,10 +10,15 @@ jobs:
   dco:
     runs-on: ubuntu-latest
     steps:
+      # Run the checker from the base branch, never from the PR itself:
+      # a PR could otherwise edit check_dco.py to pass.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.base.sha }}
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch the pull request commits
+        run: git fetch --no-tags origin "refs/pull/${{ github.event.pull_request.number }}/head"
 
       - name: Check sign-off on every commit
         run: |
